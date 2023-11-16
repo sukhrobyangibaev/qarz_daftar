@@ -4,3 +4,5 @@ venv/
 persistence.pickle
 
 qarz_daftar.log
+
+__pycache__/

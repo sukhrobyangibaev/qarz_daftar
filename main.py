@@ -11,7 +11,7 @@ from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
     MessageHandler, filters
 
-from models import Shop
+from models import Shop, Debtor
 
 # from tests.test_data import fill_shop
 
@@ -40,7 +40,11 @@ shops_col = qarz_daftar_db['shops']
  HANDLE_SHOP_LOCATION,
  SHOP_MENU,
  SHOP_DEBTOR_SEARCH,
- SHOP_DEBTOR_ADD) = range(8)
+ SHOP_DEBTOR_ADD,
+ NEW_DEBTOR_NAME,
+ NEW_DEBTOR_NICKNAME,
+ NEW_DEBTOR_PHONE,
+ NEW_DEBTOR_DEBT_AMOUNT) = range(12)
 
 
 async def start_handler(update: Update, _) -> int:
@@ -176,38 +180,130 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.info('inserted shop id {}'.format(result.inserted_id))
         context.user_data['shop_id'] = result.inserted_id
         await update.message.reply_text("Shop added\n\nSend /shop_menu")
+        return SHOP_MENU
     else:
         logger.error('Shop NOT added, Shop={}'.format(new_shop))
-        await update.message.reply_text("Shop NOT added")
-
-    return SHOP_MENU
-
-
-async def handle_shop_menu(update: Update, _) -> int:
-    reply_markup = ReplyKeyboardMarkup([['Search debtor', 'Add debtor']], one_time_keyboard=True)
-    await update.message.reply_text('Menu:', reply_markup=reply_markup)
-    return SHOP_MENU
+        await update.message.reply_text("Shop NOT added, please type /start and try again")
+        return ConversationHandler.END
 
 
-async def handle_shop_menu_choose(update: Update, _) -> int:
-    text = update.message.text
-    if text == 'Search debtor':
-        await update.message.reply_text("Send debtor's phone number to find.")
-        return SHOP_DEBTOR_SEARCH
-    elif text == 'Add debtor':
-        await update.message.reply_text("Send debtor's phone number to add.")
-        return SHOP_DEBTOR_ADD
+async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info('/shop_menu command from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
+                                                                          update.effective_user.last_name,
+                                                                          update.effective_chat.id))
+    if context.user_data.get('shop_id'):
+        reply_markup = ReplyKeyboardMarkup([['Search debtor', 'Add debtor', 'List of debtors']],
+                                           one_time_keyboard=True)
+        await update.message.reply_text('Menu:', reply_markup=reply_markup)
+        return SHOP_MENU
     else:
-        await update.message.reply_text("Please choose a valid option.")
+        logger.info('shop_id not assigned, user_data: {}'.format(context.user_data))
+        await update.message.reply_text('Please type /start to sign in as a shop')
+        return ConversationHandler.END
+
+
+async def handle_add_debtor(update: Update, _) -> int:
+    logger.info('Add debtor message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
+                                                                          update.effective_user.last_name,
+                                                                          update.effective_chat.id))
+    await update.message.reply_text("Please send new debtor's name")
+    return NEW_DEBTOR_NAME
+
+
+async def handle_new_debtor_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    new_debtor_name = update.message.text
+    logger.info(
+        'received new_debtor_name {} from user: {} {}, chat_id: {}'.format(new_debtor_name,
+                                                                           update.effective_user.first_name,
+                                                                           update.effective_user.last_name,
+                                                                           update.effective_chat.id))
+    context.user_data['new_debtor_name'] = new_debtor_name
+    await update.message.reply_text("Please send new debtor's nickname")
+    return NEW_DEBTOR_NICKNAME
+
+
+async def handle_new_debtor_nickname(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    new_debtor_nickname = update.message.text
+    logger.info(
+        'received new_debtor_nickname {} from user: {} {}, chat_id: {}'.format(new_debtor_nickname,
+                                                                               update.effective_user.first_name,
+                                                                               update.effective_user.last_name,
+                                                                               update.effective_chat.id))
+    context.user_data['new_debtor_nickname'] = new_debtor_nickname
+    await update.message.reply_text("Please send new debtor's phone number in format '+998XXXXXXXXX'")
+    return NEW_DEBTOR_PHONE
+
+
+async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    new_debtor_phone = update.message.text
+    logger.info(
+        'received new_debtor_phone {} from user: {} {}, chat_id: {}'.format(new_debtor_phone,
+                                                                            update.effective_user.first_name,
+                                                                            update.effective_user.last_name,
+                                                                            update.effective_chat.id))
+    context.user_data['new_debtor_phone'] = new_debtor_phone
+    await update.message.reply_text("Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
+    return NEW_DEBTOR_DEBT_AMOUNT
+
+
+async def handle_new_debtor_wrong_phone(update: Update, _) -> int:
+    new_debtor_phone = update.message.text
+    logger.info(
+        'received wrong new_debtor_phone {} from user: {} {}, chat_id: {}'.format(new_debtor_phone,
+                                                                                  update.effective_user.first_name,
+                                                                                  update.effective_user.last_name,
+                                                                                  update.effective_chat.id))
+    await update.message.reply_text(
+        "Invalid phone number. Please send new debtor's phone number in format '+998XXXXXXXXX'")
+    return NEW_DEBTOR_PHONE
+
+
+async def handle_new_debtor_debt_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    new_debtor_debt_amount = int(update.message.text)
+    logger.info(
+        'received new_debtor_debt_amount {} from user: {} {}, chat_id: {}'.format(new_debtor_debt_amount,
+                                                                                  update.effective_user.first_name,
+                                                                                  update.effective_user.last_name,
+                                                                                  update.effective_chat.id))
+    context.user_data['new_debtor_debt_amount'] = new_debtor_debt_amount
+
+    new_debtor = Debtor(
+        context.user_data.get('new_debtor_name'),
+        context.user_data.get('new_debtor_nickname'),
+        context.user_data.get('new_debtor_phone'),
+        context.user_data.get('shop_id'),
+        context.user_data.get('new_debtor_debt_amount'),
+        [],
+    )
+    debtor_insert_result = debtors_col.insert_one(new_debtor.to_dict())
+    if debtor_insert_result:
+        logger.info('new debtor inserted id: {}'.format(debtor_insert_result.inserted_id))
+        append_debtor_result = shops_col.update_one({'_id': context.user_data.get('shop_id')},
+                                                    {'$push': {'debtors': debtor_insert_result.inserted_id}})
+        if append_debtor_result:
+            logger.info('new debtor {} appended to {}'.format(debtor_insert_result.inserted_id,
+                                                              context.user_data.get('shop_id')))
+            reply_text = 'New debtor added'
+        else:
+            logger.info('Error: new debtor {} not appended to shop {}'.format(debtor_insert_result.inserted_id,
+                                                                              context.user_data.get('shop_id')))
+            reply_text = 'Error. New debtor not added'
+        reply_markup = ReplyKeyboardMarkup([['Search debtor', 'Add debtor', 'List of debtors']],
+                                           one_time_keyboard=True)
+        await update.message.reply_text(f'{reply_text}\n\nMenu:', reply_markup=reply_markup)
         return SHOP_MENU
 
 
-# async def handle_shop_debtor_find(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-#     ...
-
-
-# async def handle_shop_debtor_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-#     ...
+async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
+    new_debtor_debt_amount = update.message.text
+    logger.info(
+        'received wrong new_debtor_debt_amount {} from user: {} {}, chat_id: {}'.format(new_debtor_debt_amount,
+                                                                                        update.effective_user.first_name,
+                                                                                        update.effective_user.last_name,
+                                                                                        update.effective_chat.id))
+    await update.message.reply_text(
+        "Invalid debt amount. Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
+    return NEW_DEBTOR_DEBT_AMOUNT
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -239,7 +335,8 @@ def main() -> None:
     app = Application.builder().token(environ['TOKEN']).persistence(persistence).build()
 
     main_conv = ConversationHandler(
-        entry_points=[CommandHandler('start', start_handler)],
+        entry_points=[CommandHandler('start', start_handler),
+                      CommandHandler('shop_menu', handle_shop_menu)],
         states={
             # sign in - choose sign in option
             SIGN_IN: [MessageHandler(filters.Regex('^Debtor$'), choose_role_debtor),
@@ -254,10 +351,17 @@ def main() -> None:
             # shop registration
             HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name)],
             HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location)],
-            #
-            SHOP_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_menu_choose)],
-            # SHOP_DEBTOR_SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_debtor_find)],
-            # SHOP_DEBTOR_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_debtor_add)]
+            # shop menu
+            SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
+                        MessageHandler(filters.Regex('^Add debtor$'), handle_add_debtor)],
+            # add new debtor
+            NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name)],
+            NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname)],
+            NEW_DEBTOR_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), handle_new_debtor_phone),
+                               MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_wrong_phone)],
+            NEW_DEBTOR_DEBT_AMOUNT: [MessageHandler(filters.Regex('^\d+$'), handle_new_debtor_debt_amount),
+                                     MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                                    handle_new_debtor_wrong_debt_amount)]
         },
         allow_reentry=True,
         fallbacks=[],
