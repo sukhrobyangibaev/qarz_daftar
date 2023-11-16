@@ -45,7 +45,8 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_NICKNAME,
  NEW_DEBTOR_PHONE,
  NEW_DEBTOR_DEBT_AMOUNT,
- SEARCH_DEBTOR_BY_PHONE) = range(13)
+ SEARCH_DEBTOR_BY_PHONE,
+ LIST_OF_DEBTORS) = range(14)
 
 
 def find_debtor_by_phone(shop_id, debtor_phone):
@@ -347,7 +348,7 @@ async def search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_T
                                         .format(debtor.get('phone_number'),
                                                 debtor.get('name'),
                                                 debtor.get('nickname'),
-                                                debtor.get('debt_amount'), ))
+                                                debtor.get('debt_amount')))
         # TODO add callback query
     else:
         await update.message.reply_text("debtor not found")
@@ -363,6 +364,27 @@ async def search_debtor_by_wrong_phone(update: Update, _) -> int:
 
     await update.message.reply_text("Invalid phone number. Please send debtor's phone number in format '+998XXXXXXXXX'")
     return SEARCH_DEBTOR_BY_PHONE
+
+
+async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info('message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
+                                                               update.effective_user.last_name,
+                                                               update.effective_chat.id))
+    found_shop = shops_col.find_one({'_id': context.user_data.get('shop_id')})
+    if found_shop:
+        reply_text = ''
+        for debtor in found_shop.get('debtors'):
+            found_debtor = debtors_col.find_one({'_id': debtor.get('debtor_id')})
+            reply_text += '\n\nphone: {}\nname: {}\nnickname: {}\ndebt: {} sum'.format(
+                found_debtor.get('phone_number'),
+                found_debtor.get('name'),
+                found_debtor.get('nickname'),
+                found_debtor.get('debt_amount'))
+        # TODO add callback queries
+        await update.message.reply_text(reply_text)
+    else:
+        await update.message.reply_text("shop not found")
+    return LIST_OF_DEBTORS
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -413,7 +435,8 @@ def main() -> None:
             # shop menu
             SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
                         MessageHandler(filters.Regex('^Search debtor$'), handle_search_debtor_by_phone),
-                        MessageHandler(filters.Regex('^Add debtor$'), handle_add_debtor)],
+                        MessageHandler(filters.Regex('^Add debtor$'), handle_add_debtor),
+                        MessageHandler(filters.Regex('^List of debtors$'), list_of_debtors)],
             # search for debtor
             SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), search_debtor_by_phone),
                                      MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
