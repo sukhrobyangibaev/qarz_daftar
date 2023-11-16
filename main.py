@@ -12,7 +12,7 @@ from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHa
     MessageHandler, filters
 
 from models import Shop
-from tests.test_data import fill_shop
+# from tests.test_data import fill_shop
 
 logging.basicConfig(
     format="[%(asctime)s %(levelname)s] %(message)s",
@@ -42,7 +42,7 @@ shops_col = qarz_daftar_db['shops']
  SHOP_DEBTOR_ADD) = range(8)
 
 
-async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def start_handler(update: Update, _) -> int:
     user = update.message.from_user
     reply_markup = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
 
@@ -53,7 +53,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return SIGN_IN
 
 
-async def choose_role_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def choose_role_unknown(update: Update, _) -> int:
     await update.message.reply_text("Please choose a valid option.")
     return SIGN_IN
 
@@ -76,14 +76,14 @@ async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SIGN_IN_AS_SHOP
 
 
-async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_debtor_phone_number(update: Update, _) -> int:
     phone_number = update.message.contact.phone_number
     await update.message.reply_text(
         f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.")
     return ConversationHandler.END
 
 
-async def handle_debtor_wrong_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
     await update.message.reply_text('Please share your phone number to sign in as a debtor.')
     return SIGN_IN_AS_DEBTOR
 
@@ -130,18 +130,18 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
     return SHOP_MENU
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancel(update: Update, _) -> int:
     await update.message.reply_text("Sign-in process canceled.")
     return ConversationHandler.END
 
 
-async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_shop_menu(update: Update, _) -> int:
     reply_markup = ReplyKeyboardMarkup([['Search debtor', 'Add debtor']], one_time_keyboard=True)
     await update.message.reply_text('Menu:', reply_markup=reply_markup)
     return SHOP_MENU
 
 
-async def handle_shop_menu_choose(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_shop_menu_choose(update: Update, _) -> int:
     text = update.message.text
     if text == 'Search debtor':
         await update.message.reply_text("Send debtor's phone number to find.")
@@ -154,12 +154,12 @@ async def handle_shop_menu_choose(update: Update, context: ContextTypes.DEFAULT_
         return SHOP_MENU
 
 
-async def handle_shop_debtor_find(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    ...
+# async def handle_shop_debtor_find(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+#     ...
 
 
-async def handle_shop_debtor_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    ...
+# async def handle_shop_debtor_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+#     ...
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -207,8 +207,8 @@ def main() -> None:
             HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location)],
             #
             SHOP_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_menu_choose)],
-            SHOP_DEBTOR_SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_debtor_find)],
-            SHOP_DEBTOR_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_debtor_add)]
+            # SHOP_DEBTOR_SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_debtor_find)],
+            # SHOP_DEBTOR_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_debtor_add)]
         },
         allow_reentry=True,
         fallbacks=[],
