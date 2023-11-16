@@ -81,6 +81,11 @@ async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAU
     return ConversationHandler.END
 
 
+async def handle_debtor_wrong_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text('Please share your phone number to sign in as a debtor.')
+    return SIGN_IN_AS_DEBTOR
+
+
 async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
     found_shop = shops_col.find_one({'phone_number': phone_number})
@@ -189,7 +194,9 @@ def main() -> None:
             # sign in - choose sign in option
             SIGN_IN: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_sign_in_option)],
             # sign in as debtor or shop
-            SIGN_IN_AS_DEBTOR: [MessageHandler(filters.CONTACT, handle_debtor_phone_number)],
+            SIGN_IN_AS_DEBTOR: [MessageHandler(filters.CONTACT, handle_debtor_phone_number),
+                                MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
+
             SIGN_IN_AS_SHOP: [MessageHandler(filters.CONTACT, handle_shop_phone_number)],
             # shop registration
             HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name)],
