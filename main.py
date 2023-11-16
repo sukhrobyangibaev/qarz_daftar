@@ -6,7 +6,7 @@ import traceback
 from os import environ
 
 import pymongo
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
     MessageHandler, filters
@@ -372,16 +372,17 @@ async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                                                                update.effective_chat.id))
     found_shop = shops_col.find_one({'_id': context.user_data.get('shop_id')})
     if found_shop:
-        reply_text = ''
+        keyboard = []
         for debtor in found_shop.get('debtors'):
             found_debtor = debtors_col.find_one({'_id': debtor.get('debtor_id')})
-            reply_text += '\n\nphone: {}\nname: {}\nnickname: {}\ndebt: {} sum'.format(
-                found_debtor.get('phone_number'),
+            temp_text = "{} - {:,} so'm".format(
                 found_debtor.get('name'),
-                found_debtor.get('nickname'),
                 found_debtor.get('debt_amount'))
-        # TODO add callback queries
-        await update.message.reply_text(reply_text)
+            ikb = InlineKeyboardButton(temp_text, callback_data=str(found_debtor.get('_id')))
+            keyboard.append([ikb])
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
     else:
         await update.message.reply_text("shop not found")
     return LIST_OF_DEBTORS
@@ -403,10 +404,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         f"<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n"
         f"<pre>{html.escape(tb_string)}</pre>"
     )
-
-    await context.bot.send_message(
-        chat_id=environ['DEVELOPER_CHAT_ID'], text=message, parse_mode=ParseMode.HTML
-    )
+    if len(message) < 4095:
+        await context.bot.send_message(
+            chat_id=environ['DEVELOPER_CHAT_ID'], text=message, parse_mode=ParseMode.HTML)
+    else:
+        await context.bot.send_message(chat_id=environ['DEVELOPER_CHAT_ID'], text=tb_string[:4096])
 
 
 def main() -> None:
