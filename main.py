@@ -12,6 +12,7 @@ from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHa
     MessageHandler, filters
 
 from models import Shop
+
 # from tests.test_data import fill_shop
 
 logging.basicConfig(
@@ -91,18 +92,23 @@ async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
 
 async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
+    context.user_data['shop_phone_number'] = phone_number
+
     found_shop = shops_col.find_one({'phone_number': phone_number})
-    print('shop found: ', found_shop)
     if found_shop:
-        print('found shop id', found_shop.get('_id'))
         context.user_data['shop_id'] = found_shop.get('_id')
-        await update.message.reply_text('Shop found')
-        await handle_shop_menu(update, context)
+        context.user_data['shop_name'] = found_shop.get('name')
+        context.user_data['shop_location'] = found_shop.get('location')
+        await update.message.reply_text('Shop found\n\nSend /shop_menu')
+        return SHOP_MENU
     else:
-        context.user_data['shop_phone_number'] = phone_number
         await update.message.reply_text('Shop not found\n\nSend shop name')
         return HANDLE_SHOP_NAME
-    return ConversationHandler.END
+
+
+async def handle_shop_wrong_phone_number(update: Update, _) -> int:
+    await update.message.reply_text('Please share your phone number to sign in as a shop.')
+    return SIGN_IN_AS_SHOP
 
 
 async def handle_shop_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -198,11 +204,12 @@ def main() -> None:
             SIGN_IN: [MessageHandler(filters.Regex('^Debtor$'), choose_role_debtor),
                       MessageHandler(filters.Regex('^Shop'), choose_role_shop),
                       MessageHandler(filters.ALL & ~filters.COMMAND, choose_role_unknown)],
-            # sign in as debtor or shop
+            # sign in as debtor
             SIGN_IN_AS_DEBTOR: [MessageHandler(filters.CONTACT, handle_debtor_phone_number),
                                 MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
-
-            SIGN_IN_AS_SHOP: [MessageHandler(filters.CONTACT, handle_shop_phone_number)],
+            # sign in as shop
+            SIGN_IN_AS_SHOP: [MessageHandler(filters.CONTACT, handle_shop_phone_number),
+                              MessageHandler(filters.ALL & ~filters.COMMAND, handle_shop_wrong_phone_number)],
             # shop registration
             HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name)],
             HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location)],
