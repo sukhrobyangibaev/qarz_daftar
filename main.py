@@ -44,7 +44,8 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_NAME,
  NEW_DEBTOR_NICKNAME,
  NEW_DEBTOR_PHONE,
- NEW_DEBTOR_DEBT_AMOUNT) = range(12)
+ NEW_DEBTOR_DEBT_AMOUNT,
+ SEARCH_DEBTOR_BY_PHONE) = range(13)
 
 
 def find_debtor_by_phone(shop_id, debtor_phone):
@@ -324,6 +325,46 @@ async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
     return NEW_DEBTOR_DEBT_AMOUNT
 
 
+async def handle_search_debtor_by_phone(update: Update, _) -> int:
+    logger.info('by phone number message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
+                                                                               update.effective_user.last_name,
+                                                                               update.effective_chat.id))
+
+    await update.message.reply_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
+    return SEARCH_DEBTOR_BY_PHONE
+
+
+async def search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    debtor_phone = update.message.text
+    logger.info('debtor_phone: {} message from user: {} {}, chat_id: {}'.format(debtor_phone,
+                                                                                update.effective_user.first_name,
+                                                                                update.effective_user.last_name,
+                                                                                update.effective_chat.id))
+    debtor_id = find_debtor_by_phone(context.user_data.get('shop_id'), debtor_phone)
+    if debtor_id:
+        debtor = debtors_col.find_one({'_id': debtor_id})
+        await update.message.reply_text("phone: {}\nname: {}\nnickname: {}\ndebt: {} sum"
+                                        .format(debtor.get('phone_number'),
+                                                debtor.get('name'),
+                                                debtor.get('nickname'),
+                                                debtor.get('debt_amount'), ))
+        # TODO add callback query
+    else:
+        await update.message.reply_text("debtor not found")
+    return SEARCH_DEBTOR_BY_PHONE
+
+
+async def search_debtor_by_wrong_phone(update: Update, _) -> int:
+    debtor_phone = update.message.text
+    logger.info('wrong debtor_phone: {} message from user: {} {}, chat_id: {}'.format(debtor_phone,
+                                                                                      update.effective_user.first_name,
+                                                                                      update.effective_user.last_name,
+                                                                                      update.effective_chat.id))
+
+    await update.message.reply_text("Invalid phone number. Please send debtor's phone number in format '+998XXXXXXXXX'")
+    return SEARCH_DEBTOR_BY_PHONE
+
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
 
@@ -371,7 +412,11 @@ def main() -> None:
             HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location)],
             # shop menu
             SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
+                        MessageHandler(filters.Regex('^Search debtor$'), handle_search_debtor_by_phone),
                         MessageHandler(filters.Regex('^Add debtor$'), handle_add_debtor)],
+            # search for debtor
+            SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), search_debtor_by_phone),
+                                     MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
             # add new debtor
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname)],
