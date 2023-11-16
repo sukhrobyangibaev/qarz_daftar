@@ -78,6 +78,21 @@ def get_debtors_list_keyboard(shop_id):
     return reply_markup
 
 
+def get_debtor_info(debtor_id):
+    found_debtor = debtors_col.find_one({'_id': debtor_id})
+    if found_debtor:
+        text = "phone: {}\nname: {}\nnickname: {}\ndebt: {:,} so'm".format(found_debtor.get('phone_number'),
+                                                                           found_debtor.get('name'),
+                                                                           found_debtor.get('nickname'),
+                                                                           found_debtor.get('debt_amount'))
+        return text
+
+
+plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('+', callback_data='+'),
+                                                  InlineKeyboardButton('-', callback_data='-')],
+                                                 [InlineKeyboardButton('back', callback_data='back')]])
+
+
 async def start_handler(update: Update, _) -> int:
     user = update.message.from_user
     reply_markup = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
@@ -404,20 +419,11 @@ async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     debtor_id = ObjectId(query.data)
     context.user_data['chosen_debtor_id'] = debtor_id
-    found_debtor = debtors_col.find_one({'_id': debtor_id})
-    if found_debtor:
-        text = 'phone: {}\nname: {}\nnickname: {}\ndebt: {} sum'.format(found_debtor.get('phone_number'),
-                                                                        found_debtor.get('name'),
-                                                                        found_debtor.get('nickname'),
-                                                                        found_debtor.get('debt_amount'))
 
-        keyboard = [[InlineKeyboardButton('+', callback_data='+'),
-                     InlineKeyboardButton('-', callback_data='-')],
-                    [InlineKeyboardButton('back', callback_data='back')]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+    text = get_debtor_info(debtor_id)
 
-        await query.edit_message_text(text, reply_markup=reply_markup)
-        return CHOSE_OPERATION
+    await query.edit_message_text(text, reply_markup=plus_minus_back_keyboard)
+    return CHOSE_OPERATION
 
 
 async def choose_operation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
