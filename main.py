@@ -76,8 +76,9 @@ async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SIGN_IN_AS_SHOP
 
 
-async def handle_debtor_phone_number(update: Update, _) -> int:
+async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
+    context.user_data['phone_number'] = phone_number
     await update.message.reply_text(
         f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.")
     return ConversationHandler.END
