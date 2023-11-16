@@ -6,10 +6,11 @@ import traceback
 from os import environ
 
 import pymongo
+from bson import ObjectId
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
-    MessageHandler, filters
+    MessageHandler, filters, CallbackQueryHandler
 
 from models import Shop, Debtor
 
@@ -46,7 +47,8 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_PHONE,
  NEW_DEBTOR_DEBT_AMOUNT,
  SEARCH_DEBTOR_BY_PHONE,
- LIST_OF_DEBTORS) = range(14)
+ LIST_OF_DEBTORS,
+ CHOSE_OPERATION) = range(15)
 
 
 def find_debtor_by_phone(shop_id, debtor_phone):
@@ -55,6 +57,25 @@ def find_debtor_by_phone(shop_id, debtor_phone):
         if debtor_dict.get('phone') == debtor_phone:
             return debtor_dict.get('debtor_id')
     return None
+
+
+def get_debtors_list_keyboard(shop_id):
+    found_shop = shops_col.find_one({'_id': shop_id})
+    if found_shop:
+        keyboard = []
+        for debtor in found_shop.get('debtors'):
+            found_debtor = debtors_col.find_one({'_id': debtor.get('debtor_id')})
+            temp_text = "{} - {:,} so'm".format(
+                found_debtor.get('name'),
+                found_debtor.get('debt_amount'))
+            ikb = InlineKeyboardButton(temp_text, callback_data=str(found_debtor.get('_id')))
+            keyboard.append([ikb])
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+    else:
+        reply_markup = InlineKeyboardMarkup([[]])
+
+    return reply_markup
 
 
 async def start_handler(update: Update, _) -> int:
@@ -370,22 +391,50 @@ async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     logger.info('message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
                                                                update.effective_user.last_name,
                                                                update.effective_chat.id))
-    found_shop = shops_col.find_one({'_id': context.user_data.get('shop_id')})
-    if found_shop:
-        keyboard = []
-        for debtor in found_shop.get('debtors'):
-            found_debtor = debtors_col.find_one({'_id': debtor.get('debtor_id')})
-            temp_text = "{} - {:,} so'm".format(
-                found_debtor.get('name'),
-                found_debtor.get('debt_amount'))
-            ikb = InlineKeyboardButton(temp_text, callback_data=str(found_debtor.get('_id')))
-            keyboard.append([ikb])
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
-    else:
-        await update.message.reply_text("shop not found")
+    reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
+    await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
+
     return LIST_OF_DEBTORS
+
+
+async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    debtor_id = ObjectId(query.data)
+    context.user_data['chosen_debtor_id'] = debtor_id
+    found_debtor = debtors_col.find_one({'_id': debtor_id})
+    if found_debtor:
+        text = 'phone: {}\nname: {}\nnickname: {}\ndebt: {} sum'.format(found_debtor.get('phone_number'),
+                                                                        found_debtor.get('name'),
+                                                                        found_debtor.get('nickname'),
+                                                                        found_debtor.get('debt_amount'))
+
+        keyboard = [[InlineKeyboardButton('+', callback_data='+'),
+                     InlineKeyboardButton('-', callback_data='-')],
+                    [InlineKeyboardButton('back', callback_data='back')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(text, reply_markup=reply_markup)
+        return CHOSE_OPERATION
+
+
+async def choose_operation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == '+':
+        ...
+    elif query.data == '-':
+        ...
+    elif query.data == 'back':
+        reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
+        await query.edit_message_text('List of debtors:', reply_markup=reply_markup)
+        return LIST_OF_DEBTORS
+    else:
+        await update.message.reply_text('error, please contact admin')
+        return ConversationHandler.END  # todo
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -449,7 +498,9 @@ def main() -> None:
                                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_wrong_phone)],
             NEW_DEBTOR_DEBT_AMOUNT: [MessageHandler(filters.Regex('^\d+$'), handle_new_debtor_debt_amount),
                                      MessageHandler(filters.TEXT & ~filters.COMMAND,
-                                                    handle_new_debtor_wrong_debt_amount)]
+                                                    handle_new_debtor_wrong_debt_amount)],
+            LIST_OF_DEBTORS: [CallbackQueryHandler(choose_debtor)],
+            CHOSE_OPERATION: [CallbackQueryHandler(choose_operation)]
         },
         allow_reentry=True,
         fallbacks=[],
