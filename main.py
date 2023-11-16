@@ -16,10 +16,10 @@ from models import Shop
 # from tests.test_data import fill_shop
 
 logging.basicConfig(
-    format="[%(asctime)s %(levelname)s] %(message)s",
+    format="[%(funcName)s] %(message)s",
     level=logging.INFO,
     handlers=[
-        logging.FileHandler('qarz_daftar.log'),
+        # logging.FileHandler('qarz_daftar.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -46,7 +46,9 @@ shops_col = qarz_daftar_db['shops']
 async def start_handler(update: Update, _) -> int:
     user = update.message.from_user
     reply_markup = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
-
+    logger.info('/start command from user: {} {}, chat_id: {}'.format(user.first_name,
+                                                                      user.last_name,
+                                                                      update.effective_chat.id))
     await update.message.reply_text(
         f'Hello {user.first_name}! Welcome to the debtors notepad bot. Please choose your role:',
         reply_markup=reply_markup
@@ -55,11 +57,18 @@ async def start_handler(update: Update, _) -> int:
 
 
 async def choose_role_unknown(update: Update, _) -> int:
+    logger.info('invalid role option {}, from user: {} {}, chat_id: {}'.format(update.message.text,
+                                                                               update.effective_user.first_name,
+                                                                               update.effective_user.last_name,
+                                                                               update.effective_chat.id))
     await update.message.reply_text("Please choose a valid option.")
     return SIGN_IN
 
 
 async def choose_role_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info('Debtor role chosen by user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
+                                                                        update.effective_user.last_name,
+                                                                        update.effective_chat.id))
     context.user_data['user_type'] = 'debtor'
     keyboard = [[KeyboardButton(text="Share Phone Number", request_contact=True)]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -68,7 +77,33 @@ async def choose_role_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return SIGN_IN_AS_DEBTOR
 
 
+async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    phone_number = update.message.contact.phone_number
+    logger.info(
+        'received phone number {} from user: {} {}, chat_id: {}'.format(phone_number,
+                                                                        update.effective_user.first_name,
+                                                                        update.effective_user.last_name,
+                                                                        update.effective_chat.id))
+    context.user_data['phone_number'] = phone_number
+    await update.message.reply_text(
+        f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.")
+    return ConversationHandler.END
+
+
+async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
+    logger.info('received invalid phone number {}, from user: {} {}, chat_id: {}'.format(
+        update.message.text,
+        update.effective_user.first_name,
+        update.effective_user.last_name,
+        update.effective_chat.id))
+    await update.message.reply_text('Please share your phone number to sign in as a debtor.')
+    return SIGN_IN_AS_DEBTOR
+
+
 async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info('Shop role chosen by user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
+                                                                      update.effective_user.last_name,
+                                                                      update.effective_chat.id))
     context.user_data['user_type'] = 'shop'
     keyboard = [[KeyboardButton(text="Share Phone Number", request_contact=True)]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -77,28 +112,22 @@ async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SIGN_IN_AS_SHOP
 
 
-async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    phone_number = update.message.contact.phone_number
-    context.user_data['phone_number'] = phone_number
-    await update.message.reply_text(
-        f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.")
-    return ConversationHandler.END
-
-
-async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
-    await update.message.reply_text('Please share your phone number to sign in as a debtor.')
-    return SIGN_IN_AS_DEBTOR
-
-
 async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
+    logger.info(
+        'received phone number {} from user: {} {}, chat_id: {}'.format(phone_number,
+                                                                        update.effective_user.first_name,
+                                                                        update.effective_user.last_name,
+                                                                        update.effective_chat.id))
     context.user_data['shop_phone_number'] = phone_number
 
     found_shop = shops_col.find_one({'phone_number': phone_number})
+    logger.info('found shop by phone number: {}'.format(found_shop))
     if found_shop:
         context.user_data['shop_id'] = found_shop.get('_id')
         context.user_data['shop_name'] = found_shop.get('name')
         context.user_data['shop_location'] = found_shop.get('location')
+        logger.info('saved user_data: {}'.format(context.user_data))
         await update.message.reply_text('Shop found\n\nSend /shop_menu')
         return SHOP_MENU
     else:
@@ -107,12 +136,22 @@ async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT
 
 
 async def handle_shop_wrong_phone_number(update: Update, _) -> int:
+    logger.info('received invalid phone number {}, from user: {} {}, chat_id: {}'.format(
+        update.message.text,
+        update.effective_user.first_name,
+        update.effective_user.last_name,
+        update.effective_chat.id))
     await update.message.reply_text('Please share your phone number to sign in as a shop.')
     return SIGN_IN_AS_SHOP
 
 
 async def handle_shop_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     shop_name = update.message.text
+    logger.info(
+        'received shop name {} from user: {} {}, chat_id: {}'.format(shop_name,
+                                                                     update.effective_user.first_name,
+                                                                     update.effective_user.last_name,
+                                                                     update.effective_chat.id))
     context.user_data['shop_name'] = shop_name
     await update.message.reply_text("Please share shop's location")
     return HANDLE_SHOP_LOCATION
@@ -120,26 +159,28 @@ async def handle_shop_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     shop_location = update.message.text
+    logger.info(
+        'received shop location {} from user: {} {}, chat_id: {}'.format(shop_location,
+                                                                         update.effective_user.first_name,
+                                                                         update.effective_user.last_name,
+                                                                         update.effective_chat.id))
     context.user_data['shop_location'] = shop_location
+    logger.info('saved user_data: {}'.format(context.user_data))
     new_shop = Shop(
         context.user_data.get('shop_name'),
         context.user_data.get('shop_location'),
         context.user_data.get('shop_phone_number'),
     )
     result = shops_col.insert_one(new_shop.to_dict())
-    print('inserted shop id', result.inserted_id)
     if result:
+        logger.info('inserted shop id {}'.format(result.inserted_id))
         context.user_data['shop_id'] = result.inserted_id
         await update.message.reply_text("Shop added\n\nSend /shop_menu")
     else:
+        logger.error('Shop NOT added, Shop={}'.format(new_shop))
         await update.message.reply_text("Shop NOT added")
 
     return SHOP_MENU
-
-
-async def cancel(update: Update, _) -> int:
-    await update.message.reply_text("Sign-in process canceled.")
-    return ConversationHandler.END
 
 
 async def handle_shop_menu(update: Update, _) -> int:
