@@ -1,2 +1,6 @@
 venv/
 .idea/
+
+persistence.pickle
+
+qarz_daftar.log
