@@ -47,6 +47,14 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_DEBT_AMOUNT) = range(12)
 
 
+def find_debtor_by_phone(shop_id, debtor_phone):
+    shop = shops_col.find_one({'_id': shop_id})
+    for debtor_dict in shop.get('debtors'):
+        if debtor_dict.get('phone') == debtor_phone:
+            return debtor_dict.get('debtor_id')
+    return None
+
+
 async def start_handler(update: Update, _) -> int:
     user = update.message.from_user
     reply_markup = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
@@ -241,6 +249,13 @@ async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_
                                                                             update.effective_user.first_name,
                                                                             update.effective_user.last_name,
                                                                             update.effective_chat.id))
+    found_debtor = find_debtor_by_phone(context.user_data.get('shop_id'), new_debtor_phone)
+    if found_debtor:
+        await update.message.reply_text(
+            "Debtor with {} phone number is already exists.\n"
+            "Please send new debtor's phone number in format '+998XXXXXXXXX'".format(new_debtor_phone))
+        return NEW_DEBTOR_PHONE
+
     context.user_data['new_debtor_phone'] = new_debtor_phone
     await update.message.reply_text("Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
     return NEW_DEBTOR_DEBT_AMOUNT
@@ -279,7 +294,10 @@ async def handle_new_debtor_debt_amount(update: Update, context: ContextTypes.DE
     if debtor_insert_result:
         logger.info('new debtor inserted id: {}'.format(debtor_insert_result.inserted_id))
         append_debtor_result = shops_col.update_one({'_id': context.user_data.get('shop_id')},
-                                                    {'$push': {'debtors': debtor_insert_result.inserted_id}})
+                                                    {'$push': {'debtors': {
+                                                        'debtor_id': debtor_insert_result.inserted_id,
+                                                        'phone': context.user_data.get('new_debtor_phone')
+                                                    }}})
         if append_debtor_result:
             logger.info('new debtor {} appended to {}'.format(debtor_insert_result.inserted_id,
                                                               context.user_data.get('shop_id')))
