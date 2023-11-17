@@ -48,7 +48,8 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_DEBT_AMOUNT,
  SEARCH_DEBTOR_BY_PHONE,
  LIST_OF_DEBTORS,
- CHOSE_OPERATION) = range(15)
+ CHOSE_OPERATION,
+ CHOOSE_ACTION) = range(16)
 
 
 def find_debtor_by_phone(shop_id, debtor_phone):
@@ -379,16 +380,14 @@ async def search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_T
                                                                                 update.effective_chat.id))
     debtor_id = find_debtor_by_phone(context.user_data.get('shop_id'), debtor_phone)
     if debtor_id:
-        debtor = debtors_col.find_one({'_id': debtor_id})
-        await update.message.reply_text("phone: {}\nname: {}\nnickname: {}\ndebt: {} sum"
-                                        .format(debtor.get('phone_number'),
-                                                debtor.get('name'),
-                                                debtor.get('nickname'),
-                                                debtor.get('debt_amount')))
-        # TODO add callback query
+        context.user_data['chosen_debtor_id'] = debtor_id
+        text = get_debtor_info(debtor_id)
+        await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+        return CHOOSE_ACTION
     else:
-        await update.message.reply_text("debtor not found")
-    return SEARCH_DEBTOR_BY_PHONE
+        await update.message.reply_text("Debtor not found.\n"
+                                        "Please send debtor's phone number in format '+998XXXXXXXXX'")
+        return SEARCH_DEBTOR_BY_PHONE
 
 
 async def search_debtor_by_wrong_phone(update: Update, _) -> int:
@@ -400,6 +399,22 @@ async def search_debtor_by_wrong_phone(update: Update, _) -> int:
 
     await update.message.reply_text("Invalid phone number. Please send debtor's phone number in format '+998XXXXXXXXX'")
     return SEARCH_DEBTOR_BY_PHONE
+
+
+async def choose_action(update: Update, _) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == '+':
+        ...
+    elif query.data == '-':
+        ...
+    elif query.data == 'back':
+        await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
+        return SEARCH_DEBTOR_BY_PHONE
+    else:
+        await update.message.reply_text('error, please contact admin')
+        return ConversationHandler.END
 
 
 async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -440,7 +455,7 @@ async def choose_operation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return LIST_OF_DEBTORS
     else:
         await update.message.reply_text('error, please contact admin')
-        return ConversationHandler.END  # todo
+        return ConversationHandler.END
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -497,6 +512,7 @@ def main() -> None:
             # search for debtor
             SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), search_debtor_by_phone),
                                      MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
+            CHOOSE_ACTION: [CallbackQueryHandler(choose_action)],
             # add new debtor
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname)],
