@@ -104,19 +104,20 @@ plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('+', call
                                                   InlineKeyboardButton('-', callback_data='-')],
                                                  [InlineKeyboardButton('back', callback_data='back')]])
 
+choose_role_keyboard = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
+
 
 # Callback Functions ===================================================================================================
+# Start ----------------------------------------------------------------------------------------------------------------
 async def start(update: Update, _) -> int:
-    user = update.message.from_user
-    reply_markup = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
-
     await update.message.reply_text(
-        f'Hello {user.first_name}! Welcome to the debtors notepad bot. Please choose your role:',
-        reply_markup=reply_markup
+        'Welcome to the debtors notepad bot. Please choose your role:',
+        reply_markup=choose_role_keyboard
     )
     return SIGN_IN
 
 
+# Choose Role ----------------------------------------------------------------------------------------------------------
 async def choose_role_unknown(update: Update, _) -> int:
     await update.message.reply_text("Please choose a valid option.")
     return SIGN_IN
@@ -131,6 +132,16 @@ async def choose_role_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return SIGN_IN_AS_DEBTOR
 
 
+async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['user_type'] = 'shop'
+    keyboard = [[KeyboardButton(text="Share Phone Number", request_contact=True)]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("Please share your phone number to sign in as a shop.",
+                                    reply_markup=reply_markup)
+    return SIGN_IN_AS_SHOP
+
+
+#  ----------------------------------------------------------------------------------------------------------
 async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
 
@@ -143,15 +154,6 @@ async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAU
 async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
     await update.message.reply_text('Please share your phone number to sign in as a debtor.')
     return SIGN_IN_AS_DEBTOR
-
-
-async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['user_type'] = 'shop'
-    keyboard = [[KeyboardButton(text="Share Phone Number", request_contact=True)]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Please share your phone number to sign in as a shop.",
-                                    reply_markup=reply_markup)
-    return SIGN_IN_AS_SHOP
 
 
 async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
