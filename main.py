@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import traceback
+from datetime import datetime
 from os import environ
 
 import pymongo
@@ -49,7 +50,9 @@ shops_col = qarz_daftar_db['shops']
  SEARCH_DEBTOR_BY_PHONE,
  LIST_OF_DEBTORS,
  CHOSE_OPERATION,
- CHOOSE_ACTION) = range(16)
+ CHOOSE_ACTION,
+ SEND_DEBT,
+ SEND_PAYMENT) = range(18)
 
 
 def find_debtor_by_phone(shop_id, debtor_phone):
@@ -249,10 +252,11 @@ async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return ConversationHandler.END
 
 
-async def handle_add_debtor(update: Update, _) -> int:
+async def handle_add_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info('Add debtor message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
                                                                           update.effective_user.last_name,
                                                                           update.effective_chat.id))
+    context.user_data['chosen_shop_menu'] = 'add_debtor'
     await update.message.reply_text("Please send new debtor's name")
     return NEW_DEBTOR_NAME
 
@@ -363,11 +367,11 @@ async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
     return NEW_DEBTOR_DEBT_AMOUNT
 
 
-async def handle_search_debtor_by_phone(update: Update, _) -> int:
+async def handle_search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info('by phone number message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
                                                                                update.effective_user.last_name,
                                                                                update.effective_chat.id))
-
+    context.user_data['chosen_shop_menu'] = 'search_debtor'
     await update.message.reply_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
     return SEARCH_DEBTOR_BY_PHONE
 
@@ -401,27 +405,11 @@ async def search_debtor_by_wrong_phone(update: Update, _) -> int:
     return SEARCH_DEBTOR_BY_PHONE
 
 
-async def choose_action(update: Update, _) -> int:
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == '+':
-        ...
-    elif query.data == '-':
-        ...
-    elif query.data == 'back':
-        await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
-        return SEARCH_DEBTOR_BY_PHONE
-    else:
-        await update.message.reply_text('error, please contact admin')
-        return ConversationHandler.END
-
-
 async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info('message from user: {} {}, chat_id: {}'.format(update.effective_user.first_name,
                                                                update.effective_user.last_name,
                                                                update.effective_chat.id))
-
+    context.user_data['chosen_shop_menu'] = 'list_of_debtors'
     reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
     await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
 
@@ -446,16 +434,80 @@ async def choose_operation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await query.answer()
 
     if query.data == '+':
-        ...
+        text = "please send the amount of debt. e.g., '10000' for 10.000 sum debt"
+        await query.edit_message_text(text)
+        return SEND_DEBT
     elif query.data == '-':
-        ...
+        text = "please send the payment amount. e.g., '10000' for 10.000 sum debt"
+        await query.edit_message_text(text)
+        return SEND_PAYMENT
     elif query.data == 'back':
-        reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
-        await query.edit_message_text('List of debtors:', reply_markup=reply_markup)
-        return LIST_OF_DEBTORS
+        if context.user_data['chosen_shop_menu'] == 'search_debtor':
+            await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
+            return SEARCH_DEBTOR_BY_PHONE
+        elif context.user_data['chosen_shop_menu'] == 'list_of_debtors':
+            reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
+            await query.edit_message_text('List of debtors:', reply_markup=reply_markup)
+            return LIST_OF_DEBTORS
+        else:
+            ...
     else:
         await update.message.reply_text('error, please contact admin')
         return ConversationHandler.END
+
+
+async def handle_debt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    debt_amount = int(update.message.text)
+    debtor_id = context.user_data['chosen_debtor_id']
+
+    transaction = {
+        'type': 'debt',
+        'amount': debt_amount,
+        'timestamp': datetime.now()
+    }
+
+    push_transaction_result = debtors_col.update_one(
+        {"_id": debtor_id},
+        {"$push": {"transactions": transaction}}
+    )
+
+    inc_debt_result = debtors_col.update_one(
+        {"_id": debtor_id},
+        {"$inc": {"debt_amount": debt_amount}}
+    )
+    logger.info('push_transaction_result: {}\ninc_debt_result: {}'.format(push_transaction_result.raw_result,
+                                                                          inc_debt_result.raw_result))
+
+    text = get_debtor_info(debtor_id)
+    await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+    return CHOSE_OPERATION
+
+
+async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    payment_amount = int(update.message.text)
+    transaction = {
+        'type': 'payment',
+        'amount': payment_amount,
+        'timestamp': datetime.now()
+    }
+
+    debtor_id = context.user_data['chosen_debtor_id']
+
+    push_transaction_result = debtors_col.update_one(
+        {"_id": debtor_id},
+        {"$push": {"transactions": transaction}}
+    )
+
+    inc_payment_result = debtors_col.update_one(
+        {"_id": debtor_id},
+        {"$inc": {"debt_amount": -payment_amount}}
+    )
+    logger.info('push_transaction_result: {}\ninc_payment_result: {}'.format(push_transaction_result.raw_result,
+                                                                             inc_payment_result.raw_result))
+
+    text = get_debtor_info(debtor_id)
+    await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+    return CHOSE_OPERATION
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -512,7 +564,7 @@ def main() -> None:
             # search for debtor
             SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), search_debtor_by_phone),
                                      MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
-            CHOOSE_ACTION: [CallbackQueryHandler(choose_action)],
+            CHOOSE_ACTION: [CallbackQueryHandler(choose_operation)],
             # add new debtor
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname)],
@@ -522,7 +574,10 @@ def main() -> None:
                                      MessageHandler(filters.TEXT & ~filters.COMMAND,
                                                     handle_new_debtor_wrong_debt_amount)],
             LIST_OF_DEBTORS: [CallbackQueryHandler(choose_debtor)],
-            CHOSE_OPERATION: [CallbackQueryHandler(choose_operation)]
+            CHOSE_OPERATION: [CallbackQueryHandler(choose_operation)],
+            # + / -
+            SEND_DEBT: [MessageHandler(filters.Regex('^\d+$'), handle_debt)],
+            SEND_PAYMENT: [MessageHandler(filters.Regex('^\d+$'), handle_payment)]
         },
         allow_reentry=True,
         fallbacks=[],
