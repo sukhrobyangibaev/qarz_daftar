@@ -120,13 +120,23 @@ shop_menu_keyboard = ReplyKeyboardMarkup([['🔎 Search debtor'], ['➕ Add debt
 
 
 # Callback Functions ===================================================================================================
-# Start ----------------------------------------------------------------------------------------------------------------
+# /start ---------------------------------------------------------------------------------------------------------------
 async def start(update: Update, _) -> int:
     await update.message.reply_text(
         'Welcome to the "Qarz Daftar" bot. Please choose your role. ⤵',
         reply_markup=choose_role_keyboard
     )
     return SIGN_IN
+
+
+# /shop_menu -----------------------------------------------------------------------------------------------------------
+async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data.get('shop_id'):
+        await update.message.reply_text('Menu:', reply_markup=shop_menu_keyboard)
+        return SHOP_MENU
+    else:
+        await update.message.reply_text('Please type /start to sign in as a shop')
+        return ConversationHandler.END
 
 
 # Choose Role ----------------------------------------------------------------------------------------------------------
@@ -243,16 +253,6 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error('PyMongoError: {}'.format(error))
 
         await update.message.reply_text('Error. Please contact administrator.')
-        return ConversationHandler.END
-
-
-# ---
-async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data.get('shop_id'):
-        await update.message.reply_text('Menu:', reply_markup=shop_menu_keyboard)
-        return SHOP_MENU
-    else:
-        await update.message.reply_text('Please type /start to sign in as a shop')
         return ConversationHandler.END
 
 
