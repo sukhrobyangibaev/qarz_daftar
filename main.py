@@ -1,6 +1,7 @@
 import html
 import json
 import logging
+import re
 import sys
 import traceback
 from datetime import datetime
@@ -104,7 +105,9 @@ plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('+', call
                                                   InlineKeyboardButton('-', callback_data='-')],
                                                  [InlineKeyboardButton('back', callback_data='back')]])
 
-choose_role_keyboard = ReplyKeyboardMarkup([['🛒 Shop'], ['👤 Debtor']], one_time_keyboard=True)
+choose_role_keyboard = ReplyKeyboardMarkup([['🛒 Shop'],
+                                            ['👤 Debtor']],
+                                           one_time_keyboard=True)
 
 share_phone_number_keyboard = ReplyKeyboardMarkup([[KeyboardButton(text="Share Phone Number", request_contact=True)],
                                                    [KeyboardButton(text="Back")]],
@@ -125,6 +128,14 @@ async def start(update: Update, _) -> int:
 # Choose Role ----------------------------------------------------------------------------------------------------------
 async def choose_role_unknown(update: Update, _) -> int:
     await update.message.reply_text("Please choose a valid option. Debtor or Shop.")
+    return SIGN_IN
+
+
+async def choose_role_back(update: Update, _) -> int:
+    await update.message.reply_text(
+        'Please choose your role:',
+        reply_markup=choose_role_keyboard
+    )
     return SIGN_IN
 
 
@@ -471,14 +482,17 @@ def main() -> None:
                       CommandHandler('shop_menu', handle_shop_menu)],
         states={
             # sign in - choose sign in option
-            SIGN_IN: [MessageHandler(filters.Regex('(?:👤\s*)?[Dd][Ee][Bb][Tt][Oo][Rr]'), choose_role_debtor),
-                      MessageHandler(filters.Regex('(?:🛒\s*)?[Ss][Hh][Oo][Pp]'), choose_role_shop),
+            SIGN_IN: [MessageHandler(filters.Regex(re.compile(r'debtor', re.IGNORECASE)), choose_role_debtor),
+                      MessageHandler(filters.Regex(re.compile(r'shop', re.IGNORECASE)), choose_role_shop),
                       MessageHandler(filters.ALL & ~filters.COMMAND, choose_role_unknown)],
             # sign in as debtor
-            SIGN_IN_AS_DEBTOR: [MessageHandler(filters.CONTACT, handle_debtor_phone_number),
-                                MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
+            SIGN_IN_AS_DEBTOR: [
+                MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
+                MessageHandler(filters.CONTACT, handle_debtor_phone_number),
+                MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
             # sign in as shop
-            SIGN_IN_AS_SHOP: [MessageHandler(filters.CONTACT, handle_shop_phone_number),
+            SIGN_IN_AS_SHOP: [MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
+                              MessageHandler(filters.CONTACT, handle_shop_phone_number),
                               MessageHandler(filters.ALL & ~filters.COMMAND, handle_shop_wrong_phone_number)],
             # shop registration
             HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name)],
