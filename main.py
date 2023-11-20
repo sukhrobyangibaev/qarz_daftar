@@ -383,6 +383,7 @@ async def handle_debt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         {"_id": debtor_id},
         {"$inc": {"debt_amount": debt_amount}}
     )
+    logger.info('{}\n{}'.format(push_transaction_result.raw_result, inc_debt_result))
 
     text = get_debtor_info(debtor_id)
     await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
@@ -413,6 +414,7 @@ async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         {"_id": debtor_id},
         {"$inc": {"debt_amount": -payment_amount}}
     )
+    logger.info('{}\n{}'.format(push_transaction_result.raw_result, inc_payment_result))
 
     text = get_debtor_info(debtor_id)
     await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
