@@ -49,11 +49,10 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_DEBT_AMOUNT,
  SEARCH_DEBTOR,
  LIST_OF_DEBTORS,
- CHOSE_OPERATION,
  DEBTOR_INFO,
  SEND_DEBT,
  SEND_PAYMENT,
- CHECK_NEW_DEBTOR_DATA) = range(19)
+ CHECK_NEW_DEBTOR_DATA) = range(18)
 
 # Regex constants ======================================================================================================
 DEBTOR_PHONE_REGEX = '^\+998\d{9}$'
@@ -80,6 +79,7 @@ def get_debtors_list_keyboard(shop_id):
                 found_debtor.get('debt_amount'))
             ikb = InlineKeyboardButton(temp_text, callback_data=str(found_debtor.get('_id')))
             keyboard.append([ikb])
+        keyboard.append([InlineKeyboardButton('🔙', callback_data='back')])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
     else:
@@ -136,7 +136,7 @@ async def start(update: Update, _) -> int:
 # /shop_menu -----------------------------------------------------------------------------------------------------------
 async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data.get('shop_id'):
-        await update.message.reply_text('Menu:', reply_markup=shop_menu_keyboard)
+        await update.message.reply_text('Shop Menu:', reply_markup=shop_menu_keyboard)
         return SHOP_MENU
     else:
         await update.message.reply_text('Please type /start to sign in as a shop')
@@ -262,7 +262,7 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # Choose Role -> Shop -> Search Debtor ---------------------------------------------------------------------------------
 async def search_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['chosen_shop_menu'] = 'search_debtor'  # need to handle 'back' button in info
+    context.user_data['chosen_shop_menu'] = 'search_debtor'
     text = "Process of searching for debtor is started. Send /cancel to cancel this process"
     await update.message.reply_text(text)
     await update.message.reply_text("Please send debtor's phone number to search in format \"+998XXXXXXXXX\" ✍")
@@ -303,7 +303,7 @@ async def search_debtor_wrong_phone(update: Update, _) -> int:
 
 # Choose Role -> Shop -> Add Debtor ------------------------------------------------------------------------------------
 async def add_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['chosen_shop_menu'] = 'add_debtor'  # need to handle 'back' button in info
+    context.user_data['chosen_shop_menu'] = 'add_debtor'
 
     text = "Process of adding new debtor is started. Send /cancel to cancel this process"
     await update.message.reply_text(text)
@@ -424,14 +424,21 @@ async def new_debtor_incorrect_data(update: Update, _) -> int:
     return NEW_DEBTOR_NAME
 
 
-# -----------------
+# Choose Role -> Shop -> List of debtors -------------------------------------------------------------------------------
 async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['chosen_shop_menu'] = 'list_of_debtors'  # need to handle 'back' button in info
+    context.user_data['chosen_shop_menu'] = 'list_of_debtors'
 
     reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
     await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
-
     return LIST_OF_DEBTORS
+
+
+async def back_to_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.delete_message()
+    await context.bot.send_message(update.effective_chat.id, 'Shop Menu:', reply_markup=shop_menu_keyboard)
+    return SHOP_MENU
 
 
 async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -442,11 +449,11 @@ async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data['chosen_debtor_id'] = debtor_id
 
     text = get_debtor_info(debtor_id)
-
     await query.edit_message_text(text, reply_markup=plus_minus_back_keyboard)
-    return CHOSE_OPERATION
+    return DEBTOR_INFO
 
 
+# ----
 async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -476,6 +483,11 @@ async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         return ConversationHandler.END
 
 
+async def handle_wrong_debt(update: Update, _) -> int:
+    await update.message.reply_text("Wrong format.\nPlease send the amount of debt. e.g., '10000' for 10.000 sum debt")
+    return SEND_DEBT
+
+
 async def handle_debt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     debt_amount = int(update.message.text)
     debtor_id = context.user_data['chosen_debtor_id']
@@ -499,12 +511,12 @@ async def handle_debt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     text = get_debtor_info(debtor_id)
     await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
-    return CHOSE_OPERATION
+    return DEBTOR_INFO
 
 
-async def handle_wrong_debt(update: Update, _) -> int:
-    await update.message.reply_text("Wrong format.\nPlease send the amount of debt. e.g., '10000' for 10.000 sum debt")
-    return SEND_DEBT
+async def handle_wrong_payment(update: Update, _) -> int:
+    await update.message.reply_text("Wrong format.\nPlease send the payment amount. e.g., '10000' for 10.000 sum debt")
+    return SEND_PAYMENT
 
 
 async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -530,12 +542,7 @@ async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     text = get_debtor_info(debtor_id)
     await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
-    return CHOSE_OPERATION
-
-
-async def handle_wrong_payment(update: Update, _) -> int:
-    await update.message.reply_text("Wrong format.\nPlease send the payment amount. e.g., '10000' for 10.000 sum debt")
-    return SEND_PAYMENT
+    return DEBTOR_INFO
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -614,9 +621,9 @@ def main() -> None:
                                                     handle_new_debtor_wrong_debt_amount)],
             CHECK_NEW_DEBTOR_DATA: [CallbackQueryHandler(new_debtor_correct_data, pattern="^correct$"),
                                     CallbackQueryHandler(new_debtor_incorrect_data, pattern="^incorrect")],
-
-            LIST_OF_DEBTORS: [CallbackQueryHandler(choose_debtor)],
-            CHOSE_OPERATION: [CallbackQueryHandler(debtor_info)],
+            # list of debtors
+            LIST_OF_DEBTORS: [CallbackQueryHandler(back_to_shop_menu, pattern="^back"),
+                              CallbackQueryHandler(choose_debtor)],
             # debtor info
             DEBTOR_INFO: [CallbackQueryHandler(debtor_info)],
             # + / -
@@ -639,6 +646,7 @@ def main() -> None:
     # TODO - check if phone number is forwarded when signing in
     # TODO - sign up as shop with cancels
     # TODO - optimize mongodb search with mongodb indexes
+    # TODO - divide debtor_info function by checking pattern in CallbackQueryHandler
 
 
 if __name__ == '__main__':
