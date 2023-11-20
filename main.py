@@ -54,6 +54,9 @@ shops_col = qarz_daftar_db['shops']
  SEND_DEBT,
  SEND_PAYMENT) = range(18)
 
+DEBTOR_PHONE_REGEX = '^\+998\d{9}$'
+AMOUNT_REGEX = '^\d+$'
+
 
 def find_debtor_by_phone(shop_id, debtor_phone):
     shop = shops_col.find_one({'_id': shop_id})
@@ -562,22 +565,22 @@ def main() -> None:
                         MessageHandler(filters.Regex('^Add debtor$'), handle_add_debtor),
                         MessageHandler(filters.Regex('^List of debtors$'), list_of_debtors)],
             # search for debtor
-            SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), search_debtor_by_phone),
+            SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), search_debtor_by_phone),
                                      MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
             CHOOSE_ACTION: [CallbackQueryHandler(choose_operation)],
             # add new debtor
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname)],
-            NEW_DEBTOR_PHONE: [MessageHandler(filters.Regex('^\+998\d{9}$'), handle_new_debtor_phone),
+            NEW_DEBTOR_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), handle_new_debtor_phone),
                                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_wrong_phone)],
-            NEW_DEBTOR_DEBT_AMOUNT: [MessageHandler(filters.Regex('^\d+$'), handle_new_debtor_debt_amount),
+            NEW_DEBTOR_DEBT_AMOUNT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_new_debtor_debt_amount),
                                      MessageHandler(filters.TEXT & ~filters.COMMAND,
                                                     handle_new_debtor_wrong_debt_amount)],
             LIST_OF_DEBTORS: [CallbackQueryHandler(choose_debtor)],
             CHOSE_OPERATION: [CallbackQueryHandler(choose_operation)],
             # + / -
-            SEND_DEBT: [MessageHandler(filters.Regex('^\d+$'), handle_debt)],
-            SEND_PAYMENT: [MessageHandler(filters.Regex('^\d+$'), handle_payment)]
+            SEND_DEBT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_debt)],
+            SEND_PAYMENT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_payment)]
         },
         allow_reentry=True,
         fallbacks=[],
