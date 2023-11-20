@@ -4,23 +4,14 @@ import traceback
 from datetime import datetime
 from os import environ
 
-import pymongo
 from bson import ObjectId
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
     MessageHandler, filters, CallbackQueryHandler
 
-from conversation import logger
+from conversation import logger, shops_col, debtors_col
 from models import Shop, Debtor
-
-# from tests.test_data import fill_shop
-
-
-myclient = pymongo.MongoClient('mongodb://localhost:27017/')
-qarz_daftar_db = myclient['qarz_daftar']
-debtors_col = qarz_daftar_db['debtors']
-shops_col = qarz_daftar_db['shops']
 
 # Constants for conversation states
 (SIGN_IN,
