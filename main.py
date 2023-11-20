@@ -155,7 +155,7 @@ async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SIGN_IN_AS_SHOP
 
 
-#  ----------------------------------------------------------------------------------------------------------
+#  Choose Role -> Debtor -----------------------------------------------------------------------------------------------
 async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
 
@@ -166,10 +166,11 @@ async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAU
 
 
 async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
-    await update.message.reply_text('Please share your phone number to sign in as a debtor.')
+    await update.message.reply_text('Wrong format.\nPlease share your phone number to sign in as a debtor.')
     return SIGN_IN_AS_DEBTOR
 
 
+#  Choose Role -> Shop -------------------------------------------------------------------------------------------------
 async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.contact.phone_number
 
@@ -533,6 +534,7 @@ def main() -> None:
     app.add_error_handler(error_handler)
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # TODO - sign in with password
 
 
 if __name__ == '__main__':
