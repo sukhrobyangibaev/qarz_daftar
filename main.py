@@ -471,15 +471,7 @@ async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     query = update.callback_query
     await query.answer()
 
-    if query.data == '+':
-        text = "please send the amount of debt. e.g., '10000' for 10.000 sum debt"
-        await query.edit_message_text(text)
-        return SEND_DEBT
-    elif query.data == '-':
-        text = "please send the payment amount. e.g., '10000' for 10.000 sum debt"
-        await query.edit_message_text(text)
-        return SEND_PAYMENT
-    elif query.data == 'back':
+    if query.data == 'back':
         if context.user_data['chosen_shop_menu'] == 'search_debtor':
             await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
             return SEARCH_DEBTOR
@@ -492,8 +484,12 @@ async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             await context.bot.send_message(update.effective_chat.id, 'Shop Menu:', reply_markup=shop_menu_keyboard)
             return SHOP_MENU
     else:
-        await update.message.reply_text('error, please contact admin')
-        return ConversationHandler.END
+        text = "please send the amount of debt. e.g., '10000' for 10.000 sum debt"
+        await query.edit_message_text(text)
+        if query.data == '+':
+            return SEND_DEBT
+        elif query.data == '-':
+            return SEND_PAYMENT
 
 
 async def handle_wrong_debt(update: Update, _) -> int:
