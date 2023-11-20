@@ -10,7 +10,8 @@ from os import environ
 import pymongo
 from bson import ObjectId
 from pymongo.errors import PyMongoError
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup, \
+    ReplyKeyboardRemove
 from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
     MessageHandler, filters, CallbackQueryHandler
@@ -192,7 +193,9 @@ async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAU
 
     context.user_data['phone_number'] = phone_number
     await update.message.reply_text(
-        f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.")
+        f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return ConversationHandler.END
 
 
@@ -507,20 +510,25 @@ async def handle_debt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         'timestamp': datetime.now()
     }
 
-    push_transaction_result = debtors_col.update_one(
-        {"_id": debtor_id},
-        {"$push": {"transactions": transaction}}
-    )
+    try:
+        push_transaction_result = debtors_col.update_one(
+            {"_id": debtor_id},
+            {"$push": {"transactions": transaction}}
+        )
 
-    inc_debt_result = debtors_col.update_one(
-        {"_id": debtor_id},
-        {"$inc": {"debt_amount": debt_amount}}
-    )
-    logger.info('{}\n{}'.format(push_transaction_result.raw_result, inc_debt_result))
+        inc_debt_result = debtors_col.update_one(
+            {"_id": debtor_id},
+            {"$inc": {"debt_amount": debt_amount}}
+        )
+        logger.info('{}\n{}'.format(push_transaction_result.raw_result, inc_debt_result))
 
-    text = get_debtor_info(debtor_id)
-    await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
-    return DEBTOR_INFO
+        text = get_debtor_info(debtor_id)
+        await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+        return DEBTOR_INFO
+
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return ConversationHandler.END
 
 
 async def handle_wrong_payment(update: Update, _) -> int:
@@ -538,22 +546,28 @@ async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     debtor_id = context.user_data['chosen_debtor_id']
 
-    push_transaction_result = debtors_col.update_one(
-        {"_id": debtor_id},
-        {"$push": {"transactions": transaction}}
-    )
+    try:
+        push_transaction_result = debtors_col.update_one(
+            {"_id": debtor_id},
+            {"$push": {"transactions": transaction}}
+        )
 
-    inc_payment_result = debtors_col.update_one(
-        {"_id": debtor_id},
-        {"$inc": {"debt_amount": -payment_amount}}
-    )
-    logger.info('{}\n{}'.format(push_transaction_result.raw_result, inc_payment_result))
+        inc_payment_result = debtors_col.update_one(
+            {"_id": debtor_id},
+            {"$inc": {"debt_amount": -payment_amount}}
+        )
+        logger.info('{}\n{}'.format(push_transaction_result.raw_result, inc_payment_result))
 
-    text = get_debtor_info(debtor_id)
-    await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
-    return DEBTOR_INFO
+        text = get_debtor_info(debtor_id)
+        await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+        return DEBTOR_INFO
+
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return ConversationHandler.END
 
 
+# Error Handler --------------------------------------------------------------------------------------------------------
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
 
@@ -587,55 +601,56 @@ def main() -> None:
         entry_points=[CommandHandler('start', start),
                       CommandHandler('shop_menu', handle_shop_menu)],
         states={
-            # sign in - choose sign in option
+            # sign in - choose sign in option --------------------------------------------------------------------------
             SIGN_IN: [MessageHandler(filters.Regex(re.compile(r'debtor', re.IGNORECASE)), choose_role_debtor),
                       MessageHandler(filters.Regex(re.compile(r'shop', re.IGNORECASE)), choose_role_shop),
                       MessageHandler(filters.ALL & ~filters.COMMAND, choose_role_unknown)],
-            # sign in as debtor
+            # sign in as debtor ----------------------------------------------------------------------------------------
             SIGN_IN_AS_DEBTOR: [
                 MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
                 MessageHandler(filters.CONTACT, handle_debtor_phone_number),
                 MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
-            # sign in as shop
+            # sign in as shop ------------------------------------------------------------------------------------------
             SIGN_IN_AS_SHOP: [MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
                               MessageHandler(filters.CONTACT, handle_shop_phone_number),
                               MessageHandler(filters.ALL & ~filters.COMMAND, handle_shop_wrong_phone_number)],
-            # shop registration
+            # shop registration ----------------------------------------------------------------------------------------
             HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name),
                                CommandHandler('cancel', choose_role_shop)],
             HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location),
                                    CommandHandler('cancel', choose_role_shop)],
-            # shop menu
+            # shop menu ------------------------------------------------------------------------------------------------
             SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
                         MessageHandler(filters.Regex('^🔎 Search debtor$'), search_debtor),
                         MessageHandler(filters.Regex('^➕ Add debtor$'), add_debtor),
                         MessageHandler(filters.Regex('^📃 List of debtors$'), list_of_debtors)],
-            # search for debtor
+            # search for debtor ----------------------------------------------------------------------------------------
             SEARCH_DEBTOR: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), search_debtor_by_phone),
                             MessageHandler(filters.Regex('^➕ Add New Debtor$'), add_debtor),
                             MessageHandler(filters.Regex('^✍ Send Another Phone Number$'), search_debtor),
                             MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_wrong_phone),
                             CommandHandler('cancel', handle_shop_menu)],
 
-            # add new debtor
+            # add new debtor -------------------------------------------------------------------------------------------
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name),
                               CommandHandler('cancel', handle_shop_menu)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname),
                                   CommandHandler('cancel', add_debtor)],
             NEW_DEBTOR_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), handle_new_debtor_phone),
                                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_wrong_phone),
-                               CommandHandler('cancel', handle_new_debtor_nickname)],
+                               CommandHandler('cancel', add_debtor)],
             NEW_DEBTOR_DEBT_AMOUNT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_new_debtor_debt_amount),
                                      MessageHandler(filters.TEXT & ~filters.COMMAND,
-                                                    handle_new_debtor_wrong_debt_amount)],
+                                                    handle_new_debtor_wrong_debt_amount),
+                                     CommandHandler('cancel', add_debtor)],
             CHECK_NEW_DEBTOR_DATA: [CallbackQueryHandler(new_debtor_correct_data, pattern="^correct$"),
                                     CallbackQueryHandler(new_debtor_incorrect_data, pattern="^incorrect")],
-            # list of debtors
+            # list of debtors ------------------------------------------------------------------------------------------
             LIST_OF_DEBTORS: [CallbackQueryHandler(back_to_shop_menu, pattern="^back"),
                               CallbackQueryHandler(choose_debtor)],
-            # debtor info
+            # debtor info ----------------------------------------------------------------------------------------------
             DEBTOR_INFO: [CallbackQueryHandler(debtor_info)],
-            # + / -
+            # [+ / -] --------------------------------------------------------------------------------------------------
             SEND_DEBT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_debt),
                         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_wrong_debt)],
             SEND_PAYMENT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_payment),
@@ -656,6 +671,7 @@ def main() -> None:
     # TODO - sign up as shop with cancels
     # TODO - optimize mongodb search with mongodb indexes
     # TODO - divide debtor_info function by checking pattern in CallbackQueryHandler
+    # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
 
 
 if __name__ == '__main__':
