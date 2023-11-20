@@ -302,7 +302,7 @@ async def search_debtor_wrong_phone(update: Update, _) -> int:
 
 
 # Choose Role -> Shop -> Add Debtor ------------------------------------------------------------------------------------
-async def handle_add_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def add_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['chosen_shop_menu'] = 'add_debtor'  # need to handle 'back' button in info
 
     text = "Process of adding new debtor is started. Send /cancel to cancel this process"
@@ -362,6 +362,12 @@ async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_
         return ConversationHandler.END
 
 
+async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
+    await update.message.reply_text(
+        "Invalid debt amount. Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
+    return NEW_DEBTOR_DEBT_AMOUNT
+
+
 async def handle_new_debtor_debt_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     new_debtor_debt_amount = int(update.message.text)
     context.user_data['new_debtor_debt_amount'] = new_debtor_debt_amount
@@ -418,14 +424,10 @@ async def new_debtor_incorrect_data(update: Update, _) -> int:
     return NEW_DEBTOR_NAME
 
 
-async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
-    await update.message.reply_text(
-        "Invalid debt amount. Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
-    return NEW_DEBTOR_DEBT_AMOUNT
-
-
+# -----------------
 async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['chosen_shop_menu'] = 'list_of_debtors'  # need to handle 'back' button in info
+
     reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
     await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
 
@@ -590,11 +592,11 @@ def main() -> None:
             # shop menu
             SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
                         MessageHandler(filters.Regex('^🔎 Search debtor$'), search_debtor),
-                        MessageHandler(filters.Regex('^➕ Add debtor$'), handle_add_debtor),
+                        MessageHandler(filters.Regex('^➕ Add debtor$'), add_debtor),
                         MessageHandler(filters.Regex('^📃 List of debtors$'), list_of_debtors)],
             # search for debtor
             SEARCH_DEBTOR: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), search_debtor_by_phone),
-                            MessageHandler(filters.Regex('^➕ Add New Debtor$'), handle_add_debtor),
+                            MessageHandler(filters.Regex('^➕ Add New Debtor$'), add_debtor),
                             MessageHandler(filters.Regex('^✍ Send Another Phone Number$'), search_debtor),
                             MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_wrong_phone),
                             CommandHandler('cancel', handle_shop_menu)],
@@ -603,7 +605,7 @@ def main() -> None:
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name),
                               CommandHandler('cancel', handle_shop_menu)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname),
-                                  CommandHandler('cancel', handle_add_debtor)],
+                                  CommandHandler('cancel', add_debtor)],
             NEW_DEBTOR_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), handle_new_debtor_phone),
                                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_wrong_phone),
                                CommandHandler('cancel', handle_new_debtor_nickname)],
@@ -634,7 +636,7 @@ def main() -> None:
     app.add_error_handler(error_handler)
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
-    # TODO - sign in with password
+    # TODO - check if phone number is forwarded when signing in
     # TODO - sign up as shop with cancels
     # TODO - optimize mongodb search with mongodb indexes
 
