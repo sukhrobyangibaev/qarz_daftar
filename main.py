@@ -61,45 +61,58 @@ AMOUNT_REGEX = '^\d+$'
 
 # Helper functions =====================================================================================================
 def find_debtor_by_phone(shop_id, debtor_phone):
-    shop = shops_col.find_one({'_id': shop_id})
-    for debtor_dict in shop.get('debtors'):
-        if debtor_dict.get('phone') == debtor_phone:
-            return debtor_dict.get('debtor_id')
-    return None
+    try:
+        shop = shops_col.find_one({'_id': shop_id})
+        for debtor_dict in shop.get('debtors'):
+            if debtor_dict.get('phone') == debtor_phone:
+                return debtor_dict.get('debtor_id')
+        return None
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return None
 
 
 def get_debtors_list_keyboard(shop_id):
-    found_shop = shops_col.find_one({'_id': shop_id})
-    if found_shop:
-        keyboard = []
-        for debtor in found_shop.get('debtors'):
-            found_debtor = debtors_col.find_one({'_id': debtor.get('debtor_id')})
-            temp_text = "{} - {:,} so'm".format(
-                found_debtor.get('name'),
-                found_debtor.get('debt_amount'))
-            ikb = InlineKeyboardButton(temp_text, callback_data=str(found_debtor.get('_id')))
-            keyboard.append([ikb])
-        keyboard.append([InlineKeyboardButton('🔙', callback_data='back')])
+    try:
+        found_shop = shops_col.find_one({'_id': shop_id})
+        if found_shop:
+            keyboard = []
+            for debtor in found_shop.get('debtors'):
+                found_debtor = debtors_col.find_one({'_id': debtor.get('debtor_id')})
+                temp_text = "{} - {:,} so'm".format(
+                    found_debtor.get('name'),
+                    found_debtor.get('debt_amount'))
+                ikb = InlineKeyboardButton(temp_text, callback_data=str(found_debtor.get('_id')))
+                keyboard.append([ikb])
+            keyboard.append([InlineKeyboardButton('🔙', callback_data='back')])
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-    else:
-        reply_markup = InlineKeyboardMarkup([[]])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+        else:
+            reply_markup = InlineKeyboardMarkup([[]])
 
-    return reply_markup
+        return reply_markup
+
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return None
 
 
 def get_debtor_info(debtor_id):
-    found_debtor = debtors_col.find_one({'_id': debtor_id})
-    if found_debtor:
-        text = "phone: {}\n" \
-               "name: {}\n" \
-               "nickname: {}\n" \
-               "debt: {:,} so'm" \
-            .format(found_debtor.get('phone_number'),
-                    found_debtor.get('name'),
-                    found_debtor.get('nickname'),
-                    found_debtor.get('debt_amount'))
-        return text
+    try:
+        found_debtor = debtors_col.find_one({'_id': debtor_id})
+        if found_debtor:
+            text = "phone: {}\n" \
+                   "name: {}\n" \
+                   "nickname: {}\n" \
+                   "debt: {:,} so'm" \
+                .format(found_debtor.get('phone_number'),
+                        found_debtor.get('name'),
+                        found_debtor.get('nickname'),
+                        found_debtor.get('debt_amount'))
+            return text
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return None
 
 
 # Keyboards ============================================================================================================
@@ -453,7 +466,7 @@ async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return DEBTOR_INFO
 
 
-# ----
+# Debtor Info Callback Function (+ / - / back) -------------------------------------------------------------------------
 async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
