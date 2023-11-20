@@ -9,6 +9,7 @@ from os import environ
 
 import pymongo
 from bson import ObjectId
+from pymongo.errors import PyMongoError
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
@@ -101,25 +102,28 @@ def get_debtor_info(debtor_id):
 
 
 # Keyboards ============================================================================================================
-plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('+', callback_data='+'),
-                                                  InlineKeyboardButton('-', callback_data='-')],
-                                                 [InlineKeyboardButton('back', callback_data='back')]])
+plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('➕', callback_data='+'),
+                                                  InlineKeyboardButton('➖', callback_data='-')],
+                                                 [InlineKeyboardButton('🔙', callback_data='back')]])
 
 choose_role_keyboard = ReplyKeyboardMarkup([['🛒 Shop'],
                                             ['👤 Debtor']],
                                            one_time_keyboard=True)
 
-share_phone_number_keyboard = ReplyKeyboardMarkup([[KeyboardButton(text="Share Phone Number", request_contact=True)],
-                                                   [KeyboardButton(text="Back")]],
+share_phone_number_keyboard = ReplyKeyboardMarkup([[KeyboardButton(text="Share Phone Number 📞", request_contact=True)],
+                                                   [KeyboardButton(text="Back 🔙")]],
                                                   resize_keyboard=True,
                                                   one_time_keyboard=True)
+
+shop_menu_keyboard = ReplyKeyboardMarkup([['🔎 Search debtor'], ['➕ Add debtor'], ['📃 List of debtors']],
+                                         one_time_keyboard=True)
 
 
 # Callback Functions ===================================================================================================
 # Start ----------------------------------------------------------------------------------------------------------------
 async def start(update: Update, _) -> int:
     await update.message.reply_text(
-        'Welcome to the "Qarz Daftar" bot. Please choose your role:',
+        'Welcome to the "Qarz Daftar" bot. Please choose your role. ⤵',
         reply_markup=choose_role_keyboard
     )
     return SIGN_IN
@@ -127,13 +131,13 @@ async def start(update: Update, _) -> int:
 
 # Choose Role ----------------------------------------------------------------------------------------------------------
 async def choose_role_unknown(update: Update, _) -> int:
-    await update.message.reply_text("Please choose a valid option. Debtor or Shop.")
+    await update.message.reply_text("Please choose a valid option. Debtor or Shop. ⤵")
     return SIGN_IN
 
 
 async def choose_role_back(update: Update, _) -> int:
     await update.message.reply_text(
-        'Please choose your role:',
+        'Please choose your role. ⤵',
         reply_markup=choose_role_keyboard
     )
     return SIGN_IN
@@ -142,7 +146,7 @@ async def choose_role_back(update: Update, _) -> int:
 async def choose_role_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['user_type'] = 'debtor'
 
-    await update.message.reply_text("Please share your phone number to sign in as a debtor.",
+    await update.message.reply_text("Please share your phone number to sign in as a debtor. ⤵",
                                     reply_markup=share_phone_number_keyboard)
     return SIGN_IN_AS_DEBTOR
 
@@ -150,7 +154,7 @@ async def choose_role_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['user_type'] = 'shop'
 
-    await update.message.reply_text("Please share your phone number to sign in as a shop.",
+    await update.message.reply_text("Please share your phone number to sign in as a shop. ⤵",
                                     reply_markup=share_phone_number_keyboard)
     return SIGN_IN_AS_SHOP
 
@@ -170,34 +174,47 @@ async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
     return SIGN_IN_AS_DEBTOR
 
 
-#  Choose Role -> Shop -------------------------------------------------------------------------------------------------
-async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    phone_number = update.message.contact.phone_number
-
-    context.user_data['shop_phone_number'] = phone_number
-
-    found_shop = shops_col.find_one({'phone_number': phone_number})
-    if found_shop:
-        context.user_data['shop_id'] = found_shop.get('_id')
-        context.user_data['shop_name'] = found_shop.get('name')
-        context.user_data['shop_location'] = found_shop.get('location')
-        await update.message.reply_text('Shop found\n\nSend /shop_menu')
-        return SHOP_MENU
-    else:
-        await update.message.reply_text('Shop not found\n\nSend shop name')
-        return HANDLE_SHOP_NAME
-
-
+#  Choose Role -> Shop -> Check Phone Number ---------------------------------------------------------------------------
 async def handle_shop_wrong_phone_number(update: Update, _) -> int:
-    await update.message.reply_text('Please share your phone number to sign in as a shop.')
+    await update.message.reply_text('Wrong format.\nPlease share your phone number to sign in as a shop.')
     return SIGN_IN_AS_SHOP
 
 
+async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    phone_number = update.message.contact.phone_number
+    context.user_data['shop_phone_number'] = phone_number
+
+    try:
+        found_shop = shops_col.find_one({'phone_number': phone_number})
+
+        if found_shop is not None:
+            context.user_data['shop_id'] = found_shop.get('_id')
+            context.user_data['shop_name'] = found_shop.get('name')
+            context.user_data['shop_location'] = found_shop.get('location')
+
+            await update.message.reply_text(
+                'Welcome, {}!\nPlease choose option ⤵'.format(context.user_data['shop_name']),
+                reply_markup=shop_menu_keyboard)
+            return SHOP_MENU
+        else:
+            text = 'Shop not found.\nProcess of adding new shop is started. Type /cancel to cancel the process.'
+            await context.bot.send_message(update.effective_chat.id, text)
+            await update.message.reply_text('Send shop name ✍')
+            return HANDLE_SHOP_NAME
+
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+
+        await update.message.reply_text('Error. Please contact administrator.')
+        return ConversationHandler.END
+
+
+#  Choose Role -> Shop -> Add New Shop ---------------------------------------------------------------------------------
 async def handle_shop_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     shop_name = update.message.text
 
     context.user_data['shop_name'] = shop_name
-    await update.message.reply_text("Please share shop's location")
+    await update.message.reply_text("Send shop's location ✍")
     return HANDLE_SHOP_LOCATION
 
 
@@ -223,9 +240,7 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data.get('shop_id'):
-        reply_markup = ReplyKeyboardMarkup([['Search debtor', 'Add debtor', 'List of debtors']],
-                                           one_time_keyboard=True)
-        await update.message.reply_text('Menu:', reply_markup=reply_markup)
+        await update.message.reply_text('Menu:', reply_markup=shop_menu_keyboard)
         return SHOP_MENU
     else:
         await update.message.reply_text('Please type /start to sign in as a shop')
@@ -496,13 +511,15 @@ def main() -> None:
                               MessageHandler(filters.CONTACT, handle_shop_phone_number),
                               MessageHandler(filters.ALL & ~filters.COMMAND, handle_shop_wrong_phone_number)],
             # shop registration
-            HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name)],
-            HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location)],
+            HANDLE_SHOP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_name),
+                               CommandHandler('cancel', choose_role_shop)],
+            HANDLE_SHOP_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shop_location),
+                                   CommandHandler('cancel', choose_role_shop)],
             # shop menu
             SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
-                        MessageHandler(filters.Regex('^Search debtor$'), handle_search_debtor_by_phone),
-                        MessageHandler(filters.Regex('^Add debtor$'), handle_add_debtor),
-                        MessageHandler(filters.Regex('^List of debtors$'), list_of_debtors)],
+                        MessageHandler(filters.Regex('^🔎 Search debtor$'), handle_search_debtor_by_phone),
+                        MessageHandler(filters.Regex('^➕ Add debtor$'), handle_add_debtor),
+                        MessageHandler(filters.Regex('^📃 List of debtors$'), list_of_debtors)],
             # search for debtor
             SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), search_debtor_by_phone),
                                      MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
@@ -535,6 +552,7 @@ def main() -> None:
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
     # TODO - sign in with password
+    # TODO - optimize mongodb search with mongodb indexes
 
 
 if __name__ == '__main__':
