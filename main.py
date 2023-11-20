@@ -15,13 +15,10 @@ from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHa
 
 from models import Shop, Debtor
 
-# from tests.test_data import fill_shop
-
 logging.basicConfig(
     format="[%(funcName)s] %(message)s",
     level=logging.INFO,
     handlers=[
-        # logging.FileHandler('qarz_daftar.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -450,7 +447,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 def main() -> None:
-    # fill_shop(shops_col)
     persistence = PicklePersistence(filepath='persistence.pickle')
 
     app = Application.builder().token(environ['TOKEN']).persistence(persistence).build()
