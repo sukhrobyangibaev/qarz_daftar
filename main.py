@@ -15,7 +15,7 @@ from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHa
 
 from models import Shop, Debtor
 
-# Logging --------------------------------------------------------------------------------------------------------------
+# Logging ==============================================================================================================
 logging.basicConfig(
     format="[%(funcName)s] %(message)s",
     level=logging.INFO,
@@ -26,13 +26,13 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# MongoDB connection ---------------------------------------------------------------------------------------------------
+# MongoDB connection ===================================================================================================
 myclient = pymongo.MongoClient('mongodb://localhost:27017/')
 qarz_daftar_db = myclient['qarz_daftar']
 debtors_col = qarz_daftar_db['debtors']
 shops_col = qarz_daftar_db['shops']
 
-# Constants for conversation states ------------------------------------------------------------------------------------
+# Constants for conversation states ====================================================================================
 (SIGN_IN,
  SIGN_IN_AS_DEBTOR,
  SIGN_IN_AS_SHOP,
@@ -52,12 +52,12 @@ shops_col = qarz_daftar_db['shops']
  SEND_DEBT,
  SEND_PAYMENT) = range(18)
 
-# Regex constants ------------------------------------------------------------------------------------------------------
+# Regex constants ======================================================================================================
 DEBTOR_PHONE_REGEX = '^\+998\d{9}$'
 AMOUNT_REGEX = '^\d+$'
 
 
-# Helper functions -----------------------------------------------------------------------------------------------------
+# Helper functions =====================================================================================================
 def find_debtor_by_phone(shop_id, debtor_phone):
     shop = shops_col.find_one({'_id': shop_id})
     for debtor_dict in shop.get('debtors'):
@@ -99,14 +99,14 @@ def get_debtor_info(debtor_id):
         return text
 
 
-# Keyboards ------------------------------------------------------------------------------------------------------------
+# Keyboards ============================================================================================================
 plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('+', callback_data='+'),
                                                   InlineKeyboardButton('-', callback_data='-')],
                                                  [InlineKeyboardButton('back', callback_data='back')]])
 
 
-# Callback Functions ---------------------------------------------------------------------------------------------------
-async def start_handler(update: Update, _) -> int:
+# Callback Functions ===================================================================================================
+async def start(update: Update, _) -> int:
     user = update.message.from_user
     reply_markup = ReplyKeyboardMarkup([['Debtor', 'Shop']], one_time_keyboard=True)
 
@@ -455,14 +455,14 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         await context.bot.send_message(chat_id=environ['DEVELOPER_CHAT_ID'], text=tb_string[:4096])
 
 
-# Main -----------------------------------------------------------------------------------------------------------------
+# Main =================================================================================================================
 def main() -> None:
     persistence = PicklePersistence(filepath='persistence.pickle')
 
     app = Application.builder().token(environ['TOKEN']).persistence(persistence).build()
 
     main_conv = ConversationHandler(
-        entry_points=[CommandHandler('start', start_handler),
+        entry_points=[CommandHandler('start', start),
                       CommandHandler('shop_menu', handle_shop_menu)],
         states={
             # sign in - choose sign in option
