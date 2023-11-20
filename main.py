@@ -247,8 +247,6 @@ async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def handle_new_debtor_wrong_phone(update: Update, _) -> int:
-    new_debtor_phone = update.message.text
-
     await update.message.reply_text(
         "Invalid phone number. Please send new debtor's phone number in format '+998XXXXXXXXX'")
     return NEW_DEBTOR_PHONE
@@ -287,8 +285,6 @@ async def handle_new_debtor_debt_amount(update: Update, context: ContextTypes.DE
 
 
 async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
-    new_debtor_debt_amount = update.message.text
-
     await update.message.reply_text(
         "Invalid debt amount. Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
     return NEW_DEBTOR_DEBT_AMOUNT
@@ -316,8 +312,6 @@ async def search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def search_debtor_by_wrong_phone(update: Update, _) -> int:
-    debtor_phone = update.message.text
-
     await update.message.reply_text("Invalid phone number. Please send debtor's phone number in format '+998XXXXXXXXX'")
     return SEARCH_DEBTOR_BY_PHONE
 
@@ -395,6 +389,11 @@ async def handle_debt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return CHOSE_OPERATION
 
 
+async def handle_wrong_debt(update: Update, _) -> int:
+    await update.message.reply_text("Wrong format.\nPlease send the amount of debt. e.g., '10000' for 10.000 sum debt")
+    return SEND_DEBT
+
+
 async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     payment_amount = int(update.message.text)
     transaction = {
@@ -418,6 +417,11 @@ async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     text = get_debtor_info(debtor_id)
     await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
     return CHOSE_OPERATION
+
+
+async def handle_wrong_payment(update: Update, _) -> int:
+    await update.message.reply_text("Wrong format.\nPlease send the payment amount. e.g., '10000' for 10.000 sum debt")
+    return SEND_PAYMENT
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -487,7 +491,7 @@ def main() -> None:
             CHOSE_OPERATION: [CallbackQueryHandler(choose_operation)],
             # + / -
             SEND_DEBT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_debt),
-                        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_debt)],
+                        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_wrong_debt)],
             SEND_PAYMENT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_payment),
                            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_payment)]
         },
