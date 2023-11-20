@@ -1,7 +1,5 @@
 import html
 import json
-import logging
-import sys
 import traceback
 from datetime import datetime
 from os import environ
@@ -13,21 +11,11 @@ from telegram.constants import ParseMode
 from telegram.ext import PicklePersistence, Application, ContextTypes, CommandHandler, ConversationHandler, \
     MessageHandler, filters, CallbackQueryHandler
 
+from conversation import logger
 from models import Shop, Debtor
 
 # from tests.test_data import fill_shop
 
-logging.basicConfig(
-    format="[%(funcName)s] %(message)s",
-    level=logging.INFO,
-    handlers=[
-        # logging.FileHandler('qarz_daftar.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
-logger = logging.getLogger(__name__)
 
 myclient = pymongo.MongoClient('mongodb://localhost:27017/')
 qarz_daftar_db = myclient['qarz_daftar']
