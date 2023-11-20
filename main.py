@@ -88,10 +88,14 @@ def get_debtors_list_keyboard(shop_id):
 def get_debtor_info(debtor_id):
     found_debtor = debtors_col.find_one({'_id': debtor_id})
     if found_debtor:
-        text = "phone: {}\nname: {}\nnickname: {}\ndebt: {:,} so'm".format(found_debtor.get('phone_number'),
-                                                                           found_debtor.get('name'),
-                                                                           found_debtor.get('nickname'),
-                                                                           found_debtor.get('debt_amount'))
+        text = "phone: {}\n" \
+               "name: {}\n" \
+               "nickname: {}\n" \
+               "debt: {:,} so'm" \
+            .format(found_debtor.get('phone_number'),
+                    found_debtor.get('name'),
+                    found_debtor.get('nickname'),
+                    found_debtor.get('debt_amount'))
         return text
 
 
