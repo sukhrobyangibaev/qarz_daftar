@@ -228,16 +228,25 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.get('shop_location'),
         context.user_data.get('shop_phone_number'),
     )
-    result = shops_col.insert_one(new_shop.to_dict())
-    if result:
-        context.user_data['shop_id'] = result.inserted_id
-        await update.message.reply_text("Shop added\n\nSend /shop_menu")
-        return SHOP_MENU
-    else:
-        await update.message.reply_text("Shop NOT added, please type /start and try again")
+
+    try:
+        result = shops_col.insert_one(new_shop.to_dict())
+        if result is not None:
+            context.user_data['shop_id'] = result.inserted_id
+            await update.message.reply_text("Shop successfully added\n\nPlease choose option ⤵",
+                                            reply_markup=shop_menu_keyboard)
+            return SHOP_MENU
+        else:
+            await update.message.reply_text("Shop NOT added, please type /start and try again")
+            return ConversationHandler.END
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+
+        await update.message.reply_text('Error. Please contact administrator.')
         return ConversationHandler.END
 
 
+# ---
 async def handle_shop_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data.get('shop_id'):
         await update.message.reply_text('Menu:', reply_markup=shop_menu_keyboard)
