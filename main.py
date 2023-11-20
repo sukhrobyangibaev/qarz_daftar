@@ -47,10 +47,10 @@ shops_col = qarz_daftar_db['shops']
  NEW_DEBTOR_NICKNAME,
  NEW_DEBTOR_PHONE,
  NEW_DEBTOR_DEBT_AMOUNT,
- SEARCH_DEBTOR_BY_PHONE,
+ SEARCH_DEBTOR,
  LIST_OF_DEBTORS,
  CHOSE_OPERATION,
- CHOOSE_ACTION,
+ DEBTOR_INFO,
  SEND_DEBT,
  SEND_PAYMENT) = range(18)
 
@@ -184,7 +184,7 @@ async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
     return SIGN_IN_AS_DEBTOR
 
 
-#  Choose Role -> Shop -> Check Phone Number ---------------------------------------------------------------------------
+#  Choose Role -> Shop -> [check phone number process] -----------------------------------------------------------------
 async def handle_shop_wrong_phone_number(update: Update, _) -> int:
     await update.message.reply_text('Wrong format.\nPlease share your phone number to sign in as a shop.')
     return SIGN_IN_AS_SHOP
@@ -208,7 +208,7 @@ async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT
             return SHOP_MENU
         else:
             text = 'Shop not found.\nProcess of adding new shop is started. Type /cancel to cancel the process.'
-            await context.bot.send_message(update.effective_chat.id, text)
+            await update.message.reply_text(text)
             await update.message.reply_text('Send shop name ✍')
             return HANDLE_SHOP_NAME
 
@@ -219,7 +219,7 @@ async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
 
 
-#  Choose Role -> Shop -> Add New Shop ---------------------------------------------------------------------------------
+#  Choose Role -> Shop -> [add new shop process] -----------------------------------------------------------------------
 async def handle_shop_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     shop_name = update.message.text
 
@@ -256,8 +256,50 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
         return ConversationHandler.END
 
 
+# Choose Role -> Shop -> Search Debtor ---------------------------------------------------------------------------------
+async def search_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['chosen_shop_menu'] = 'search_debtor'  # need to handle 'back' button in info
+    text = "Process of searching for debtor is started. Send /cancel to cancel this process"
+    await update.message.reply_text(text)
+    await update.message.reply_text("Please send debtor's phone number to search in format \"+998XXXXXXXXX\" ✍")
+    return SEARCH_DEBTOR
+
+
+async def search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    debtor_phone = update.message.text
+
+    try:
+        debtor_id = find_debtor_by_phone(context.user_data.get('shop_id'), debtor_phone)
+        if debtor_id is not None:
+            context.user_data['chosen_debtor_id'] = debtor_id
+            text = get_debtor_info(debtor_id)
+
+            await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+            return DEBTOR_INFO
+        else:
+            keyboard = ReplyKeyboardMarkup([['➕ Add New Debtor'], ['✍ Send Another Phone Number']],
+                                           one_time_keyboard=True)
+            text = 'Debtor with phone number \'{}\' is not found.\n' \
+                   'You can add new debtor or send another phone number ⤵'.format(debtor_phone)
+
+            await update.message.reply_text(text, reply_markup=keyboard)
+            return SEARCH_DEBTOR
+
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+
+        await update.message.reply_text('Error. Please contact administrator.')
+        return ConversationHandler.END
+
+
+async def search_debtor_wrong_phone(update: Update, _) -> int:
+    await update.message.reply_text("Wrong format.\nPlease send debtor's phone number in format '+998XXXXXXXXX'")
+    return SEARCH_DEBTOR
+
+
+# Choose Role -> Shop -> Add Debtor ------------------------------------------------------------------------------------
 async def handle_add_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['chosen_shop_menu'] = 'add_debtor'
+    context.user_data['chosen_shop_menu'] = 'add_debtor'  # need to handle 'back' button in info
     await update.message.reply_text("Please send new debtor's name")
     return NEW_DEBTOR_NAME
 
@@ -337,34 +379,8 @@ async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
     return NEW_DEBTOR_DEBT_AMOUNT
 
 
-async def handle_search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['chosen_shop_menu'] = 'search_debtor'
-    await update.message.reply_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
-    return SEARCH_DEBTOR_BY_PHONE
-
-
-async def search_debtor_by_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    debtor_phone = update.message.text
-
-    debtor_id = find_debtor_by_phone(context.user_data.get('shop_id'), debtor_phone)
-    if debtor_id:
-        context.user_data['chosen_debtor_id'] = debtor_id
-        text = get_debtor_info(debtor_id)
-        await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
-        return CHOOSE_ACTION
-    else:
-        await update.message.reply_text("Debtor not found.\n"
-                                        "Please send debtor's phone number in format '+998XXXXXXXXX'")
-        return SEARCH_DEBTOR_BY_PHONE
-
-
-async def search_debtor_by_wrong_phone(update: Update, _) -> int:
-    await update.message.reply_text("Invalid phone number. Please send debtor's phone number in format '+998XXXXXXXXX'")
-    return SEARCH_DEBTOR_BY_PHONE
-
-
 async def list_of_debtors(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['chosen_shop_menu'] = 'list_of_debtors'
+    context.user_data['chosen_shop_menu'] = 'list_of_debtors'  # need to handle 'back' button in info
     reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
     await update.message.reply_text('List of debtors:', reply_markup=reply_markup)
 
@@ -384,7 +400,7 @@ async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return CHOSE_OPERATION
 
 
-async def choose_operation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
 
@@ -399,7 +415,7 @@ async def choose_operation(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     elif query.data == 'back':
         if context.user_data['chosen_shop_menu'] == 'search_debtor':
             await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
-            return SEARCH_DEBTOR_BY_PHONE
+            return SEARCH_DEBTOR
         elif context.user_data['chosen_shop_menu'] == 'list_of_debtors':
             reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
             await query.edit_message_text('List of debtors:', reply_markup=reply_markup)
@@ -526,13 +542,17 @@ def main() -> None:
                                    CommandHandler('cancel', choose_role_shop)],
             # shop menu
             SHOP_MENU: [CommandHandler('shop_menu', handle_shop_menu),
-                        MessageHandler(filters.Regex('^🔎 Search debtor$'), handle_search_debtor_by_phone),
+                        MessageHandler(filters.Regex('^🔎 Search debtor$'), search_debtor),
                         MessageHandler(filters.Regex('^➕ Add debtor$'), handle_add_debtor),
                         MessageHandler(filters.Regex('^📃 List of debtors$'), list_of_debtors)],
             # search for debtor
-            SEARCH_DEBTOR_BY_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), search_debtor_by_phone),
-                                     MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_by_wrong_phone)],
-            CHOOSE_ACTION: [CallbackQueryHandler(choose_operation)],
+            SEARCH_DEBTOR: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), search_debtor_by_phone),
+                            MessageHandler(filters.Regex('^➕ Add New Debtor$'), handle_add_debtor),
+                            MessageHandler(filters.Regex('^✍ Send Another Phone Number$'), search_debtor),
+                            MessageHandler(filters.ALL & ~filters.COMMAND, search_debtor_wrong_phone),
+                            CommandHandler('cancel', handle_shop_menu)],
+
+            DEBTOR_INFO: [CallbackQueryHandler(debtor_info)],
             # add new debtor
             NEW_DEBTOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_name)],
             NEW_DEBTOR_NICKNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_nickname)],
@@ -542,7 +562,7 @@ def main() -> None:
                                      MessageHandler(filters.TEXT & ~filters.COMMAND,
                                                     handle_new_debtor_wrong_debt_amount)],
             LIST_OF_DEBTORS: [CallbackQueryHandler(choose_debtor)],
-            CHOSE_OPERATION: [CallbackQueryHandler(choose_operation)],
+            CHOSE_OPERATION: [CallbackQueryHandler(debtor_info)],
             # + / -
             SEND_DEBT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_debt),
                         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_wrong_debt)],
