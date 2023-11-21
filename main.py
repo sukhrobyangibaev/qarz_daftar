@@ -496,29 +496,33 @@ async def choose_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 # Debtor Info Callback Function (+ / - / back) -------------------------------------------------------------------------
-async def debtor_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def debtor_info_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
 
-    if query.data == 'back':
-        if context.user_data['chosen_shop_menu'] == 'search_debtor':
-            await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
-            return SEARCH_DEBTOR
-        elif context.user_data['chosen_shop_menu'] == 'list_of_debtors':
-            reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
-            await query.edit_message_text('List of debtors:', reply_markup=reply_markup)
-            return LIST_OF_DEBTORS
-        elif context.user_data['chosen_shop_menu'] == 'add_debtor':
-            await query.delete_message()
-            await context.bot.send_message(update.effective_chat.id, 'Shop Menu:', reply_markup=shop_menu_keyboard)
-            return SHOP_MENU
-    else:
-        text = "please send the amount of debt. e.g., '10000' for 10.000 sum debt"
-        await query.edit_message_text(text)
-        if query.data == '+':
-            return SEND_DEBT
-        elif query.data == '-':
-            return SEND_PAYMENT
+    if context.user_data['chosen_shop_menu'] == 'search_debtor':
+        await query.edit_message_text("Please send debtor's phone number in format '+998XXXXXXXXX'")
+        return SEARCH_DEBTOR
+    elif context.user_data['chosen_shop_menu'] == 'list_of_debtors':
+        reply_markup = get_debtors_list_keyboard(context.user_data.get('shop_id'))
+        await query.edit_message_text('List of debtors:', reply_markup=reply_markup)
+        return LIST_OF_DEBTORS
+    elif context.user_data['chosen_shop_menu'] == 'add_debtor':
+        await query.delete_message()
+        await context.bot.send_message(update.effective_chat.id, 'Shop Menu:', reply_markup=shop_menu_keyboard)
+        return SHOP_MENU
+
+
+async def debtor_info_plus_minus(update: Update, _) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    text = "please send the amount of debt. e.g., '10000' for 10.000 sum debt"
+    await query.edit_message_text(text)
+    if query.data == '+':
+        return SEND_DEBT
+    elif query.data == '-':
+        return SEND_PAYMENT
 
 
 async def handle_wrong_debt(update: Update, _) -> int:
@@ -673,12 +677,13 @@ def main() -> None:
                                                     handle_new_debtor_wrong_debt_amount),
                                      CommandHandler('cancel', add_debtor)],
             CHECK_NEW_DEBTOR_DATA: [CallbackQueryHandler(new_debtor_correct_data, pattern="^correct$"),
-                                    CallbackQueryHandler(new_debtor_incorrect_data, pattern="^incorrect")],
+                                    CallbackQueryHandler(new_debtor_incorrect_data, pattern="^incorrect$")],
             # list of debtors ------------------------------------------------------------------------------------------
             LIST_OF_DEBTORS: [CallbackQueryHandler(back_to_shop_menu, pattern="^back"),
                               CallbackQueryHandler(choose_debtor)],
             # debtor info ----------------------------------------------------------------------------------------------
-            DEBTOR_INFO: [CallbackQueryHandler(debtor_info)],
+            DEBTOR_INFO: [CallbackQueryHandler(debtor_info_back, pattern="^back$"),
+                          CallbackQueryHandler(debtor_info_plus_minus, pattern="^\+|-$")],
             # [+ / -] --------------------------------------------------------------------------------------------------
             SEND_DEBT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_debt),
                         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_wrong_debt)],
@@ -698,7 +703,6 @@ def main() -> None:
     app.run_polling(allowed_updates=Update.ALL_TYPES)
     # TODO - add debtor functionality
     # TODO - optimize mongodb search with mongodb indexes
-    # TODO - divide debtor_info function by checking pattern in CallbackQueryHandler
     # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
 
 
