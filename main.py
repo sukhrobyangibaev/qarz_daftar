@@ -696,7 +696,7 @@ def main() -> None:
     app.add_error_handler(error_handler)
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
-    # TODO - sign up as shop with cancels
+    # TODO - add debtor functionality
     # TODO - optimize mongodb search with mongodb indexes
     # TODO - divide debtor_info function by checking pattern in CallbackQueryHandler
     # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
