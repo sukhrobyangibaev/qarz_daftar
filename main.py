@@ -53,7 +53,8 @@ shops_col = qarz_daftar_db['shops']
  DEBTOR_INFO,
  SEND_DEBT,
  SEND_PAYMENT,
- CHECK_NEW_DEBTOR_DATA) = range(18)
+ CHECK_NEW_DEBTOR_DATA,
+ DEBTOR_ALREADY_EXISTS) = range(19)
 
 # Regex constants ======================================================================================================
 DEBTOR_PHONE_REGEX = '^\+998\d{9}$'
@@ -351,10 +352,17 @@ async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_
     try:
         found_debtor = find_debtor_by_phone(context.user_data.get('shop_id'), new_debtor_phone)
         if found_debtor is not None:
+            context.user_data['existing_debtor'] = ObjectId(found_debtor)
+
+            debtor_into_text = get_debtor_info(found_debtor)
+            keyboard = ReplyKeyboardMarkup([['Go To Debtor'], ['Send Another Phone Number']], one_time_keyboard=True)
             await update.message.reply_text(
-                "Debtor with {} phone number is already exists.\n"  # todo
-                "Please send new debtor's phone number in format '+998XXXXXXXXX'".format(new_debtor_phone))
-            return NEW_DEBTOR_PHONE
+                "Debtor with {} phone number is already exists:\n\n{}\n\n"
+                "Do you want to go to this debtor or send another phone number?"
+                .format(new_debtor_phone, debtor_into_text),
+                reply_markup=keyboard
+            )
+            return DEBTOR_ALREADY_EXISTS
         else:
             context.user_data['new_debtor_phone'] = new_debtor_phone
             await update.message.reply_text("Please send new debtor's debt amount. e.g., '10000' for 10.000 sum debt")
@@ -365,6 +373,21 @@ async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_
 
         await update.message.reply_text('Error. Please contact administrator.')
         return ConversationHandler.END
+
+
+async def go_to_existing_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    debtor_id = context.user_data.get('existing_debtor')
+    context.user_data['chosen_debtor_id'] = debtor_id
+
+    text = get_debtor_info(debtor_id)
+
+    await update.message.reply_text(text, reply_markup=plus_minus_back_keyboard)
+    return DEBTOR_INFO
+
+
+async def send_another_phone_number(update: Update, _) -> int:
+    await update.message.reply_text("Please send new debtor's phone number in format '+998XXXXXXXXX'")
+    return NEW_DEBTOR_PHONE
 
 
 async def handle_new_debtor_wrong_debt_amount(update: Update, _) -> int:
@@ -628,6 +651,9 @@ def main() -> None:
             NEW_DEBTOR_PHONE: [MessageHandler(filters.Regex(DEBTOR_PHONE_REGEX), handle_new_debtor_phone),
                                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_debtor_wrong_phone),
                                CommandHandler('cancel', add_debtor)],
+            DEBTOR_ALREADY_EXISTS: [MessageHandler(filters.Regex('^Go To Debtor$'), go_to_existing_debtor),
+                                    MessageHandler(filters.Regex('^Send Another Phone Number$'),
+                                                   send_another_phone_number)],
             NEW_DEBTOR_DEBT_AMOUNT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_new_debtor_debt_amount),
                                      MessageHandler(filters.TEXT & ~filters.COMMAND,
                                                     handle_new_debtor_wrong_debt_amount),
