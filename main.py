@@ -190,14 +190,21 @@ async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 #  Choose Role -> Debtor -----------------------------------------------------------------------------------------------
 async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    phone_number = update.message.contact.phone_number
+    if update.message.contact.user_id == update.effective_user.id:
+        phone_number = update.message.contact.phone_number
 
-    context.user_data['phone_number'] = phone_number
-    await update.message.reply_text(
-        f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return ConversationHandler.END
+        context.user_data['phone_number'] = phone_number
+        await update.message.reply_text(
+            f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text(
+            f"You can sign in only with your own phone number",
+            reply_markup=share_phone_number_keyboard
+        )
+        return SIGN_IN_AS_DEBTOR
 
 
 async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
