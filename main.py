@@ -54,7 +54,8 @@ shops_col = qarz_daftar_db['shops']
  SEND_DEBT,
  SEND_PAYMENT,
  CHECK_NEW_DEBTOR_DATA,
- DEBTOR_ALREADY_EXISTS) = range(19)
+ DEBTOR_ALREADY_EXISTS,
+ DEBTOR_OPTIONS) = range(20)
 
 # Regex constants ======================================================================================================
 DEBTOR_PHONE_REGEX = '^\+998\d{9}$'
@@ -112,6 +113,21 @@ def get_debtor_info(debtor_id):
                         found_debtor.get('nickname'),
                         found_debtor.get('debt_amount'))
             return text
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return None
+
+
+def find_debts(debtor_phone_number):
+    try:
+        debtors = debtors_col.find({'phone_number': debtor_phone_number})
+        if debtors is not None:
+            debts = []
+            for debt in debtors:
+                shop = shops_col.find_one({'_id': debt.get('shop_id')})
+                debts.append("{} - {} so'm".format(shop.get('name'), debt.get('debt_amount')))
+            return '\n'.join(debt for debt in debts)
+
     except PyMongoError as error:
         logger.error('PyMongoError: {}'.format(error))
         return None
@@ -193,12 +209,13 @@ async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAU
     if update.message.contact.user_id == update.effective_user.id:
         phone_number = update.message.contact.phone_number
 
-        context.user_data['phone_number'] = phone_number
+        context.user_data['debtor_phone_number'] = phone_number
         await update.message.reply_text(
-            f"You have shared your phone number: {phone_number}. You have been signed in as a debtor.",
+            "You have shared your phone number: {}. You have been signed in as a debtor.\n\n"
+            "Please send /show_my_debts to get a list of your debts.",
             reply_markup=ReplyKeyboardRemove()
         )
-        return ConversationHandler.END
+        return DEBTOR_OPTIONS
     else:
         await update.message.reply_text(
             f"You can sign in only with your own phone number",
@@ -210,6 +227,13 @@ async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAU
 async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
     await update.message.reply_text('Wrong format.\nPlease share your phone number to sign in as a debtor.')
     return SIGN_IN_AS_DEBTOR
+
+
+async def show_debts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    debtor_phone_number = context.user_data.get('debtor_phone_number')
+    debts_text = find_debts(debtor_phone_number)
+    await update.message.reply_text(debts_text)
+    return DEBTOR_OPTIONS
 
 
 #  Choose Role -> Shop -> [check phone number process] -----------------------------------------------------------------
@@ -640,6 +664,8 @@ def main() -> None:
                 MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
                 MessageHandler(filters.CONTACT, handle_debtor_phone_number),
                 MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
+            # debtor ---------------------------------------------------------------------------------------------------
+            DEBTOR_OPTIONS: [CommandHandler('show_my_debts', show_debts)],
             # sign in as shop ------------------------------------------------------------------------------------------
             SIGN_IN_AS_SHOP: [MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
                               MessageHandler(filters.CONTACT, handle_shop_phone_number),
@@ -701,7 +727,7 @@ def main() -> None:
     app.add_error_handler(error_handler)
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
-    # TODO - add debtor functionality
+    # TODO - add show_debtor_transactions functionality
     # TODO - optimize mongodb search with mongodb indexes
     # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
 
