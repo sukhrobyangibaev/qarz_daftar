@@ -227,7 +227,7 @@ async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT
                 reply_markup=shop_menu_keyboard)
             return SHOP_MENU
         else:
-            text = 'Shop not found.\nProcess of adding new shop is started. Type /cancel to cancel the process.'
+            text = 'Shop not found.\nProcess of adding new shop is started.'
             await update.message.reply_text(text)
             await update.message.reply_text('Send shop name ✍')
             return HANDLE_SHOP_NAME
@@ -279,8 +279,6 @@ async def handle_shop_location(update: Update, context: ContextTypes.DEFAULT_TYP
 # Choose Role -> Shop -> Search Debtor ---------------------------------------------------------------------------------
 async def search_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['chosen_shop_menu'] = 'search_debtor'
-    text = "Process of searching for debtor is started. Send /cancel to cancel this process"
-    await update.message.reply_text(text)
     await update.message.reply_text("Please send debtor's phone number to search in format \"+998XXXXXXXXX\" ✍")
     return SEARCH_DEBTOR
 
@@ -321,8 +319,6 @@ async def search_debtor_wrong_phone(update: Update, _) -> int:
 async def add_debtor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['chosen_shop_menu'] = 'add_debtor'
 
-    text = "Process of adding new debtor is started. Send /cancel to cancel this process"
-    await update.message.reply_text(text)
     await update.message.reply_text("Please send new debtor's name ✍")
     return NEW_DEBTOR_NAME
 
@@ -331,8 +327,6 @@ async def handle_new_debtor_name(update: Update, context: ContextTypes.DEFAULT_T
     new_debtor_name = update.message.text
     context.user_data['new_debtor_name'] = new_debtor_name
 
-    text = 'New Debtor Name: {}.\nSend /cancel to send name again'.format(new_debtor_name)
-    await update.message.reply_text(text)
     await update.message.reply_text("Please send new debtor's nickname ✍")
     return NEW_DEBTOR_NICKNAME
 
@@ -341,8 +335,6 @@ async def handle_new_debtor_nickname(update: Update, context: ContextTypes.DEFAU
     new_debtor_nickname = update.message.text
     context.user_data['new_debtor_nickname'] = new_debtor_nickname
 
-    text = "New Debtor's Nickname: {}.\nSend /cancel to send nickname again".format(new_debtor_nickname)
-    await update.message.reply_text(text)
     await update.message.reply_text("Please send new debtor's phone number in format '+998XXXXXXXXX'")
     return NEW_DEBTOR_PHONE
 
@@ -355,9 +347,6 @@ async def handle_new_debtor_wrong_phone(update: Update, _) -> int:
 
 async def handle_new_debtor_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     new_debtor_phone = update.message.text
-
-    text = "New Debtor's phone number: {}.\nSend /cancel to send phone number again".format(new_debtor_phone)
-    await update.message.reply_text(text)
 
     try:
         found_debtor = find_debtor_by_phone(context.user_data.get('shop_id'), new_debtor_phone)
