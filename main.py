@@ -729,6 +729,7 @@ def main() -> None:
     app.add_error_handler(error_handler)
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # TODO - handle phone numbers without + (plus sign)
     # TODO - add show_debtor_transactions functionality
     # TODO - optimize mongodb search with mongodb indexes
     # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
