@@ -208,11 +208,13 @@ async def choose_role_shop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def handle_debtor_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.message.contact.user_id == update.effective_user.id:
         phone_number = update.message.contact.phone_number
+        if not phone_number.startswith('+'):
+            phone_number = '+' + phone_number
 
         context.user_data['debtor_phone_number'] = phone_number
         await update.message.reply_text(
             "You have shared your phone number: {}. You have been signed in as a debtor.\n\n"
-            "Please send /show_my_debts to get a list of your debts.",
+            "Please send /show_my_debts to get a list of your debts.".format(phone_number),
             reply_markup=ReplyKeyboardRemove()
         )
         return DEBTOR_OPTIONS
