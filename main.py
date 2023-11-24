@@ -55,7 +55,8 @@ shops_col = qarz_daftar_db['shops']
  SEND_PAYMENT,
  CHECK_NEW_DEBTOR_DATA,
  DEBTOR_ALREADY_EXISTS,
- DEBTOR_OPTIONS) = range(20)
+ DEBTOR_OPTIONS,
+ TRANSACTIONS) = range(21)
 
 # Regex constants ======================================================================================================
 DEBTOR_PHONE_REGEX = '^\+998\d{9}$'
@@ -133,10 +134,29 @@ def find_debts(debtor_phone_number):
         return None
 
 
+def get_transactions(debtor_id):
+    try:
+        debtor = debtors_col.find_one({'_id': debtor_id})
+        if debtor is not None:
+            result_text = '\n'.join("{} {}{:,} so'm".format(
+                t.get('timestamp').strftime('%d/%m/%y %H:%M'),
+                '+' if t.get('type') == 'debt' else '-',
+                t.get('amount')) for t in debtor.get('transactions'))
+            return result_text
+        else:
+            return 'error'
+    except PyMongoError as error:
+        logger.error('PyMongoError: {}'.format(error))
+        return None
+
+
 # Keyboards ============================================================================================================
 plus_minus_back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('➕', callback_data='+'),
                                                   InlineKeyboardButton('➖', callback_data='-')],
+                                                 [InlineKeyboardButton('📃', callback_data='transactions')],
                                                  [InlineKeyboardButton('🔙', callback_data='back')]])
+
+back_inline_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('🔙', callback_data='back')]])
 
 choose_role_keyboard = ReplyKeyboardMarkup([['🛒 Shop'],
                                             ['👤 Debtor']],
@@ -555,6 +575,29 @@ async def debtor_info_plus_minus(update: Update, _) -> int:
         return SEND_PAYMENT
 
 
+async def debtor_info_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    debtor_id = context.user_data['chosen_debtor_id']
+
+    transactions = get_transactions(debtor_id)
+
+    await query.edit_message_text(transactions, reply_markup=back_inline_keyboard)
+    return TRANSACTIONS
+
+
+async def debtor_info_transactions_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    debtor_id = context.user_data['chosen_debtor_id']
+
+    text = get_debtor_info(debtor_id)
+    await query.edit_message_text(text, reply_markup=plus_minus_back_keyboard)
+    return DEBTOR_INFO
+
+
 async def handle_wrong_debt(update: Update, _) -> int:
     await update.message.reply_text("Wrong format.\nPlease send the amount of debt. e.g., '10000' for 10.000 sum debt")
     return SEND_DEBT
@@ -715,7 +758,10 @@ def main() -> None:
                               CallbackQueryHandler(choose_debtor)],
             # debtor info ----------------------------------------------------------------------------------------------
             DEBTOR_INFO: [CallbackQueryHandler(debtor_info_back, pattern="^back$"),
+                          CallbackQueryHandler(debtor_info_transactions, pattern="^transactions"),
                           CallbackQueryHandler(debtor_info_plus_minus, pattern="^\+|-$")],
+            # transactions ---------------------------------------------------------------------------------------------
+            TRANSACTIONS: [CallbackQueryHandler(debtor_info_transactions_back, pattern="^back$")],
             # [+ / -] --------------------------------------------------------------------------------------------------
             SEND_DEBT: [MessageHandler(filters.Regex(AMOUNT_REGEX), handle_debt),
                         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_wrong_debt)],
