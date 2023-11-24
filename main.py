@@ -247,6 +247,10 @@ async def handle_shop_wrong_phone_number(update: Update, _) -> int:
 async def handle_shop_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.message.contact.user_id == update.effective_user.id:
         phone_number = update.message.contact.phone_number
+
+        if not phone_number.startswith('+'):
+            phone_number = '+' + phone_number
+
         context.user_data['shop_phone_number'] = phone_number
 
         try:
@@ -729,7 +733,7 @@ def main() -> None:
     app.add_error_handler(error_handler)
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
-    # TODO - handle phone numbers without + (plus sign)
+
     # TODO - add show_debtor_transactions functionality
     # TODO - optimize mongodb search with mongodb indexes
     # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
