@@ -123,11 +123,14 @@ def find_debts(debtor_phone_number):
     try:
         debtors = debtors_col.find({'phone_number': debtor_phone_number})
         if debtors is not None:
-            debts = []
+            buttons = []
+
             for debt in debtors:
                 shop = shops_col.find_one({'_id': debt.get('shop_id')})
-                debts.append("{} - {} so'm".format(shop.get('name'), debt.get('debt_amount')))
-            return '\n'.join(debt for debt in debts)
+                buttons.append([InlineKeyboardButton("{} - {} so'm".format(shop.get('name'), debt.get('debt_amount')),
+                                                     callback_data=str(debt.get('_id')))])
+
+            return InlineKeyboardMarkup(buttons)
 
     except PyMongoError as error:
         logger.error('PyMongoError: {}'.format(error))
@@ -253,8 +256,30 @@ async def handle_debtor_wrong_phone_number(update: Update, _) -> int:
 
 async def show_debts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     debtor_phone_number = context.user_data.get('debtor_phone_number')
-    debts_text = find_debts(debtor_phone_number)
-    await update.message.reply_text(debts_text)
+    debts = find_debts(debtor_phone_number)
+    await update.message.reply_text('Debts:', reply_markup=debts)
+    return DEBTOR_OPTIONS
+
+
+async def select_debt(update: Update, _) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    debtor_id = ObjectId(query.data)
+
+    transactions = get_transactions(debtor_id)
+
+    await query.edit_message_text(transactions, reply_markup=back_inline_keyboard)
+    return DEBTOR_OPTIONS
+
+
+async def show_debts_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    debtor_phone_number = context.user_data.get('debtor_phone_number')
+    debts = find_debts(debtor_phone_number)
+    await query.edit_message_text('Debts:', reply_markup=debts)
     return DEBTOR_OPTIONS
 
 
@@ -714,7 +739,9 @@ def main() -> None:
                 MessageHandler(filters.CONTACT, handle_debtor_phone_number),
                 MessageHandler(filters.ALL & ~filters.COMMAND, handle_debtor_wrong_phone_number)],
             # debtor ---------------------------------------------------------------------------------------------------
-            DEBTOR_OPTIONS: [CommandHandler('show_my_debts', show_debts)],
+            DEBTOR_OPTIONS: [CommandHandler('show_my_debts', show_debts),
+                             CallbackQueryHandler(show_debts_back, pattern="^back$"),
+                             CallbackQueryHandler(select_debt)],
             # sign in as shop ------------------------------------------------------------------------------------------
             SIGN_IN_AS_SHOP: [MessageHandler(filters.Regex(re.compile(r'back', re.IGNORECASE)), choose_role_back),
                               MessageHandler(filters.CONTACT, handle_shop_phone_number),
@@ -783,6 +810,7 @@ def main() -> None:
     # TODO - add show_debtor_transactions functionality
     # TODO - optimize mongodb search with mongodb indexes
     # TODO - add reply_markup=ReplyKeyboardRemove() where it needed
+    # TODO - remove other InlineKeyboardMarkups when sending new
 
 
 if __name__ == '__main__':
